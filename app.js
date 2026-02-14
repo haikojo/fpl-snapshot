@@ -3,6 +3,16 @@ const TTL_MS = 10 * 60 * 1000;
 const BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/";
 const ENTRY_HISTORY_URL = `https://fantasy.premierleague.com/api/entry/${TEAM_ID}/history/`;
 const SETTINGS_KEY = "fpl_snapshot_settings";
+const DEFAULT_PROXY_BASE_URL = "https://fpl-proxy.fpl-snapshot.workers.dev";
+
+function isGitHubPages() {
+  return location.hostname.endsWith("github.io");
+}
+
+let settings = {
+  useProxy: isGitHubPages(), // default ON for GitHub Pages
+  proxyBaseUrl: DEFAULT_PROXY_BASE_URL,
+};
 
 const deadlineCard = document.getElementById("deadlineCard");
 const summaryCard = document.getElementById("summaryCard");
@@ -20,10 +30,6 @@ const DEFAULT_REFRESH_LABEL = "Refresh";
 let countdownInterval = null;
 let lastRenderedHistory = [];
 let currentTheme = "light";
-let settings = {
-  useProxy: location.hostname.includes("github.io"),
-  proxyBaseUrl: "",
-};
 
 function ensureLastUpdatedLabel() {
   const existing = document.getElementById("lastUpdatedLabel");
@@ -132,13 +138,21 @@ function renderSettingsUi() {
 }
 
 function loadSettings() {
+  // Start from safe defaults (in case settings was modified elsewhere)
+  if (typeof settings.useProxy !== "boolean") settings.useProxy = isGitHubPages();
+  if (!settings.proxyBaseUrl) settings.proxyBaseUrl = DEFAULT_PROXY_BASE_URL;
+
   try {
     const raw = localStorage.getItem(SETTINGS_KEY);
     if (!raw) return;
+
     const parsed = JSON.parse(raw);
+
     if (typeof parsed?.useProxy === "boolean") settings.useProxy = parsed.useProxy;
+
     if (typeof parsed?.proxyBaseUrl === "string") {
-      settings.proxyBaseUrl = normalizeProxyBaseUrl(parsed.proxyBaseUrl);
+      const normalized = normalizeProxyBaseUrl(parsed.proxyBaseUrl);
+      if (normalized) settings.proxyBaseUrl = normalized;
     }
   } catch {
     // Ignore malformed settings.
