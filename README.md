@@ -1,2 +1,2 @@
 # fpl-snapshot
-Testing Codex fuctionality by building a quick fantasy football webapp dashboard
+Testing Codex functionality by building a quick fantasy football webapp dashboard
