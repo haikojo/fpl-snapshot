@@ -58,14 +58,33 @@ function updateLastUpdated(value) {
   lastUpdatedLabel.textContent = `Last updated ${shortTime}`;
 }
 
-function showErrorBanner() {
+function showErrorBanner(message = "Could not load data — retry?") {
   if (!errorBanner) return;
-  errorBanner.hidden = false;
+  const text = errorBanner.querySelector("span");
+  if (text) text.textContent = message;
+  errorBanner.classList.add("is-visible");
 }
 
 function hideErrorBanner() {
   if (!errorBanner) return;
-  errorBanner.hidden = true;
+  errorBanner.classList.remove("is-visible");
+}
+
+function pulseGameweekIconOnce() {
+  const icon = document.querySelector("#deadlineCard h2 .mini-icon");
+  if (!icon) return;
+
+  icon.classList.remove("pulse-once");
+  // Force restart so repeated successful refreshes can replay once.
+  void icon.offsetWidth;
+  icon.classList.add("pulse-once");
+  icon.addEventListener(
+    "animationend",
+    () => {
+      icon.classList.remove("pulse-once");
+    },
+    { once: true },
+  );
 }
 
 function setRefreshButtonState(isLoading) {
@@ -821,7 +840,7 @@ function renderTrendsCard(current) {
 function showError(message, detail) {
   const friendly = message || "We could not load FPL data right now. Please try again.";
   const detailPanel = renderErrorDetails(detail);
-  showErrorBanner();
+  showErrorBanner("Could not load data — retry?");
 
   deadlineCard.innerHTML = `
     ${cardHead("Next Deadline", "Error", "badge--warn")}
@@ -897,6 +916,7 @@ async function loadAndRender(forceRefresh = false) {
     const current = history.current || [];
     renderSummaryCard(current);
     renderTrendsCard(current);
+    pulseGameweekIconOnce();
     updateLastUpdated(new Date());
     hideErrorBanner();
   } catch (error) {

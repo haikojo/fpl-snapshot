@@ -184,7 +184,6 @@ h1 {
 }
 
 .error-banner {
-  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
@@ -195,6 +194,14 @@ h1 {
   background: #ffdddd;
   color: #8b1d1d;
   font-size: 0.9rem;
+}
+
+#errorBanner {
+  display: none;
+}
+
+#errorBanner.is-visible {
+  display: flex;
 }
 
 .btn-small {
@@ -411,7 +418,6 @@ h1 {
   letter-spacing: 0.045em;
   border: 1px solid var(--border-strong);
   white-space: nowrap;
-  animation: badgeFadeIn 280ms ease-out;
 }
 
 .badge--neutral {
@@ -501,14 +507,22 @@ canvas {
   }
 }
 
-@keyframes badgeFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(2px);
+.pulse-once {
+  animation: pulseOnce 560ms ease-out 1;
+}
+
+@keyframes pulseOnce {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
   }
-  to {
+  50% {
+    transform: scale(1.12);
     opacity: 1;
-    transform: translateY(0);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
   }
 }
 
@@ -571,6 +585,7 @@ canvas {
   .card,
   .btn,
   .badge,
+  .pulse-once,
   .chart-fade-in {
     animation: none !important;
     transition: none !important;
