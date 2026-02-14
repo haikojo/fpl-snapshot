@@ -24,6 +24,7 @@ const useProxyToggle = document.getElementById("useProxyToggle");
 const proxyBaseUrlInput = document.getElementById("proxyBaseUrlInput");
 const saveProxySettingsBtn = document.getElementById("saveProxySettingsBtn");
 const modeLabel = document.getElementById("modeLabel");
+const modeValueText = document.getElementById("modeValueText");
 const pointsChart = document.getElementById("pointsChart");
 const rankChart = document.getElementById("rankChart");
 const last6TableContainer = document.getElementById("last6TableContainer");
@@ -32,30 +33,14 @@ const DEFAULT_REFRESH_LABEL = "Refresh";
 let countdownInterval = null;
 let lastRenderedHistory = [];
 let currentTheme = "light";
-
-function ensureLastUpdatedLabel() {
-  const existing = document.getElementById("lastUpdatedLabel");
-  if (existing) return existing;
-
-  const header = document.querySelector(".site-header");
-  if (!header || !header.parentElement) return null;
-
-  const label = document.createElement("p");
-  label.id = "lastUpdatedLabel";
-  label.className = "muted last-updated";
-  label.textContent = "Last updated --:--";
-  header.insertAdjacentElement("afterend", label);
-  return label;
-}
-
-const lastUpdatedLabel = ensureLastUpdatedLabel();
+const lastUpdatedLabel = document.getElementById("lastUpdatedLabel");
 
 function updateLastUpdated(value) {
   if (!lastUpdatedLabel) return;
   const dateValue = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(dateValue.getTime())) return;
-  const shortTime = dateValue.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  lastUpdatedLabel.textContent = `Last updated ${shortTime}`;
+  const shortTime = dateValue.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  lastUpdatedLabel.textContent = shortTime;
 }
 
 function showErrorBanner(message = "Could not load data — retry?") {
@@ -165,6 +150,7 @@ function renderSettingsUi() {
     proxyBaseUrlInput.disabled = !settings.useProxy;
   }
   if (modeLabel) modeLabel.textContent = settings.useProxy ? "Proxy mode" : "Direct mode";
+  if (modeValueText) modeValueText.textContent = settings.useProxy ? "Proxy" : "Direct";
 }
 
 function loadSettings() {
@@ -313,6 +299,89 @@ function formatCountdown(targetIso) {
   const seconds = totalSeconds % 60;
 
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
+
+function getMsLeft(targetIso) {
+  return new Date(targetIso).getTime() - Date.now();
+}
+
+function getUrgencyInfo(msLeft) {
+  if (!Number.isFinite(msLeft)) return { text: "Unknown", badgeClass: "badge--neutral" };
+  const hoursLeft = msLeft / (1000 * 60 * 60);
+  if (hoursLeft > 72) return { text: "Plenty of time", badgeClass: "badge--good" };
+  if (hoursLeft >= 24) return { text: "Approaching", badgeClass: "badge--neutral" };
+  if (hoursLeft >= 6) return { text: "Soon", badgeClass: "badge--warn" };
+  return { text: "Imminent", badgeClass: "badge--danger" };
+}
+
+function formatLocalDeadline(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "n/a";
+  return date.toLocaleString();
+}
+
+function getLocalTimezone() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return tz || "Local";
+  } catch {
+    return "Local";
+  }
+}
+
+function computeRankPercentile(latestRank, totalPlayers) {
+  if (!Number.isFinite(latestRank) || !Number.isFinite(totalPlayers) || totalPlayers <= 0) return "n/a";
+  const percentile = ((totalPlayers - latestRank) / totalPlayers) * 100;
+  return `${Math.max(0, percentile).toFixed(1)}%`;
+}
+
+function computeLast6Stats(current) {
+  const last6 = Array.isArray(current) ? current.slice(-6) : [];
+  const points = last6.map((gw) => Number(gw.points)).filter((v) => Number.isFinite(v));
+  const avgPoints = points.length ? (points.reduce((sum, value) => sum + value, 0) / points.length).toFixed(1) : "n/a";
+
+  let rankDeltaText = "• 0";
+  let trendDirection = "Flat";
+  if (last6.length >= 2) {
+    const oldest = Number(last6[0].overall_rank);
+    const latest = Number(last6[last6.length - 1].overall_rank);
+    if (Number.isFinite(oldest) && Number.isFinite(latest)) {
+      const delta = oldest - latest;
+      if (delta > 0) {
+        rankDeltaText = `▲ ${formatNumber(delta)}`;
+        trendDirection = "Up";
+      } else if (delta < 0) {
+        rankDeltaText = `▼ ${formatNumber(Math.abs(delta))}`;
+        trendDirection = "Down";
+      }
+    }
+  }
+
+  return { last6, avgPoints, rankDeltaText, trendDirection };
+}
+
+function getTrendSummarySentence(current) {
+  const last6 = Array.isArray(current) ? current.slice(-6) : [];
+  if (last6.length < 2) return "Rank steady overall. Points consistent.";
+
+  const oldestRank = Number(last6[0].overall_rank);
+  const latestRank = Number(last6[last6.length - 1].overall_rank);
+  let rankSentence = "Rank steady overall.";
+  if (Number.isFinite(oldestRank) && Number.isFinite(latestRank)) {
+    if (latestRank < oldestRank) rankSentence = "Rank improving overall.";
+    else if (latestRank > oldestRank) rankSentence = "Rank slipping overall.";
+  }
+
+  const points = last6.map((gw) => Number(gw.points)).filter((v) => Number.isFinite(v));
+  const stdDev = calculateStdDev(points);
+  let pointsSentence = "Points consistent.";
+  if (Number.isFinite(stdDev)) {
+    if (stdDev < 10) pointsSentence = "Points consistent.";
+    else if (stdDev <= 20) pointsSentence = "Points variable.";
+    else pointsSentence = "Points volatile.";
+  }
+
+  return `${rankSentence} ${pointsSentence}`;
 }
 
 function iconClockSvg() {
@@ -513,10 +582,22 @@ function renderDeadlineCard(events) {
   }
 
   const render = () => {
+    const msLeft = getMsLeft(next.deadline_time);
+    const urgency = getUrgencyInfo(msLeft);
+    const countdownText = formatCountdown(next.deadline_time);
+
     deadlineCard.innerHTML = `
       ${cardHead("Next Deadline", `GW ${next.id}`, "badge--good")}
       <p><strong>Gameweek ${next.id}:</strong> ${formatDate(next.deadline_time)}</p>
-      <p class="muted">Countdown: ${formatCountdown(next.deadline_time)}</p>
+      <p class="muted">Countdown: ${countdownText}</p>
+      <h3 class="section-mini-title">DEADLINE CHECK</h3>
+      <div class="metric-list">
+        <div class="metric-row"><span class="metric-label">Time left</span><span class="metric-value">${countdownText}</span></div>
+        <div class="metric-row"><span class="metric-label">Urgency</span><span class="metric-value">${badgePill(urgency.text, urgency.badgeClass)}</span></div>
+        <div class="metric-row"><span class="metric-label">Local time</span><span class="metric-value">${formatLocalDeadline(next.deadline_time)}</span></div>
+        <div class="metric-row"><span class="metric-label">Timezone</span><span class="metric-value">${getLocalTimezone()}</span></div>
+      </div>
+      <p class="helper-note">Tip: Make transfers before the deadline to lock in points.</p>
     `;
   };
 
@@ -526,7 +607,7 @@ function renderDeadlineCard(events) {
   countdownInterval = setInterval(render, 1000);
 }
 
-function renderSummaryCard(current) {
+function renderSummaryCard(current, totalPlayers = null) {
   if (!Array.isArray(current) || current.length === 0) {
     summaryCard.innerHTML = `
       ${cardHead("Team Summary", "No Data", "badge--warn")}
@@ -544,6 +625,8 @@ function renderSummaryCard(current) {
   const achievements = getAchievements(current);
   const bestWorst = getBestWorstBadges(current);
   const form5Values = current.slice(-5).map((gw) => Number(gw.points));
+  const last6Stats = computeLast6Stats(current);
+  const rankPercentile = computeRankPercentile(Number(latestRank), Number(totalPlayers));
   const shortHistoryMessage = current.length < 6
     ? `<p class="muted">Only ${current.length} gameweek${current.length === 1 ? "" : "s"} recorded so far.</p>`
     : "";
@@ -565,6 +648,22 @@ function renderSummaryCard(current) {
       ${badgePill(bestWorst.worstBadgeText, "badge--neutral")}
     </p>
     <p class="muted">${momentum}</p>
+    <h3 class="section-mini-title">QUICK STATS</h3>
+    <div class="kpi-grid">
+      <div class="kpi-tile">
+        <p class="kpi-label">Rank percentile</p>
+        <p class="kpi-value">${rankPercentile}</p>
+      </div>
+      <div class="kpi-tile">
+        <p class="kpi-label">Avg points (last 6)</p>
+        <p class="kpi-value">${last6Stats.avgPoints}</p>
+      </div>
+      <div class="kpi-tile">
+        <p class="kpi-label">Rank Δ (last 6)</p>
+        <p class="kpi-value">${last6Stats.rankDeltaText}</p>
+      </div>
+    </div>
+    <p class="summary-line">Summary: ${last6Stats.trendDirection} momentum over the last 6 gameweeks.</p>
     <div class="achievements">
       <h3>Achievements</h3>
       <p>${achievements.bestGwText}</p>
@@ -768,7 +867,13 @@ function drawSparkline(canvas, values, color) {
 function renderLast6Table(current) {
   if (!last6TableContainer) return;
   if (!Array.isArray(current) || current.length === 0) {
-    last6TableContainer.innerHTML = `<p class="muted">No gameweek data available yet.</p>`;
+    last6TableContainer.innerHTML = `
+      <p class="muted">No gameweek data available yet.</p>
+      <div class="trend-summary">
+        <h3 class="section-mini-title">TREND SUMMARY</h3>
+        <p class="summary-line">Rank steady overall. Points consistent.</p>
+      </div>
+    `;
     return;
   }
 
@@ -808,6 +913,10 @@ function renderLast6Table(current) {
         ${rows}
       </tbody>
     </table>
+    <div class="trend-summary">
+      <h3 class="section-mini-title">TREND SUMMARY</h3>
+      <p class="summary-line">${getTrendSummarySentence(current)}</p>
+    </div>
   `;
 }
 
@@ -914,7 +1023,7 @@ async function loadAndRender(forceRefresh = false) {
 
     renderDeadlineCard(bootstrap.events || []);
     const current = history.current || [];
-    renderSummaryCard(current);
+    renderSummaryCard(current, bootstrap.total_players);
     renderTrendsCard(current);
     pulseGameweekIconOnce();
     updateLastUpdated(new Date());

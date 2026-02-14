@@ -9,17 +9,43 @@
   <body>
     <div class="page">
       <header class="site-header">
-        <div>
+        <div class="header-main">
+          <div class="header-artwork" aria-hidden="true">
+            <svg viewBox="0 0 560 140" preserveAspectRatio="none">
+              <defs>
+                <radialGradient id="hdrGlow" cx="88%" cy="18%" r="55%">
+                  <stop offset="0%" stop-color="currentColor" stop-opacity="0.18" />
+                  <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
+                </radialGradient>
+              </defs>
+              <rect width="560" height="140" fill="url(#hdrGlow)" />
+              <g opacity="0.25" stroke="currentColor" stroke-width="0.7" fill="none">
+                <path d="M0 18h560M0 46h560M0 74h560M0 102h560M0 130h560" />
+                <path d="M35 0v140M110 0v140M185 0v140M260 0v140M335 0v140M410 0v140M485 0v140" />
+              </g>
+              <path d="M18 102 C74 86, 108 38, 156 60 C204 82, 248 94, 300 68 C350 42, 392 50, 444 46 C486 42, 516 30, 546 22" stroke="currentColor" stroke-width="2" fill="none" opacity="0.58" />
+              <g fill="currentColor" opacity="0.6">
+                <circle cx="156" cy="60" r="3.3" />
+                <circle cx="300" cy="68" r="3.3" />
+                <circle cx="444" cy="46" r="3.3" />
+              </g>
+            </svg>
+          </div>
           <p class="eyebrow">Unofficial Fan Dashboard</p>
           <h1>FPL Snapshot</h1>
+          <p class="status-strip">
+            Data: <span id="dataLiveBadge" class="badge badge--good">LIVE</span>
+            <span class="status-sep">•</span>
+            Mode: <span id="modeValueText">Proxy</span>
+            <span class="status-sep">•</span>
+            Last updated <span id="lastUpdatedLabel">--:--</span>
+          </p>
         </div>
         <div class="header-actions">
           <button id="themeToggleBtn" type="button" class="btn btn-secondary" aria-label="Toggle light or dark mode">Light/Dark</button>
           <button id="refreshBtn" type="button" class="btn" aria-label="Refresh data">Refresh</button>
         </div>
       </header>
-      <!-- Insert: subtle timestamp near top -->
-      <p id="lastUpdatedLabel" class="muted last-updated">Last updated --:--</p>
       <!-- Insert: global error banner with retry -->
       <div id="errorBanner" class="error-banner">
         <span>Could not load data — retry?</span>
@@ -94,6 +120,8 @@
               Uses publicly available FPL data to show deadlines and performance trends.
               Read-only and not affiliated with the Premier League or FPL.
             </p>
+            <h3 class="links-subheading">BUILT WITH</h3>
+            <p class="links-muted">HTML · CSS · JavaScript · Cloudflare Workers · GitHub Pages</p>
           </div>
 
           <hr class="links-divider" />
