@@ -1274,6 +1274,15 @@ function renderDeadlineCard(events) {
     const countdownText = formatCountdown(next.deadline_time);
     const riskProgress = computeRiskProgress(msLeft);
     const riskFillClass = getRiskFillClass(urgency.badgeClass);
+    const nextGw = Number(next.id);
+    const gameweekValue = Number.isFinite(nextGw) ? `GW ${nextGw} / 38` : "n/a";
+    let phaseValue = "n/a";
+    if (Number.isFinite(nextGw)) {
+      if (nextGw >= 1 && nextGw <= 10) phaseValue = "Early season";
+      else if (nextGw >= 11 && nextGw <= 28) phaseValue = "Mid-season";
+      else if (nextGw >= 29 && nextGw <= 38) phaseValue = "Run-in";
+    }
+    const updateStatus = msLeft > 0 ? "Live" : "Closed";
 
     deadlineCard.innerHTML = `
       ${cardHead("Next Deadline", `GW ${next.id}`, "badge--good")}
@@ -1291,14 +1300,13 @@ function renderDeadlineCard(events) {
           <div class="risk-fill ${riskFillClass}" style="width:${riskProgress.toFixed(1)}%"></div>
         </div>
       </div>
-      <h3 class="section-mini-title">CHECKLIST</h3>
-      <ul class="checklist">
-        <li><span class="check-indicator">☐</span>Transfers checked</li>
-        <li><span class="check-indicator">☐</span>Captain set</li>
-        <li><span class="check-indicator">☐</span>Bench order set</li>
-      </ul>
-      <p class="helper-note">Manual reminders (not auto-detected).</p>
-      <p class="helper-note">Tip: Make transfers before the deadline to lock in points.</p>
+      <h3 class="section-mini-title">DEADLINE CONTEXT</h3>
+      <div class="status-grid">
+        <div class="status-row"><span class="status-label">Gameweek</span><span class="status-value">${gameweekValue}</span></div>
+        <div class="status-row"><span class="status-label">Phase</span><span class="status-value">${phaseValue}</span></div>
+        <div class="status-row"><span class="status-label">Update status</span><span class="status-value">${updateStatus}</span></div>
+        <div class="status-row"><span class="status-label">Timezone</span><span class="status-value">Local time</span></div>
+      </div>
     `;
   };
 

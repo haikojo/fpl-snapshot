@@ -863,6 +863,12 @@ canvas {
   grid-column: 1 / -1;
 }
 
+.card--last {
+  grid-column: 1 / -1;
+  width: min(100%, 430px);
+  justify-self: start;
+}
+
 .pl-overview-tools {
   display: flex;
   align-items: center;
