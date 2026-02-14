@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FPL Snapshot</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <div>
+          <p class="eyebrow">Unofficial Fan Dashboard</p>
+          <h1>FPL Snapshot</h1>
+        </div>
+        <div class="header-actions">
+          <button id="themeToggleBtn" type="button" class="btn btn-secondary" aria-label="Toggle light or dark mode">Light/Dark</button>
+          <button id="refreshBtn" type="button" class="btn" aria-label="Refresh data">Refresh</button>
+        </div>
+      </header>
+
+      <main class="cards" aria-live="polite">
+        <section id="deadlineCard" class="card">
+          <div class="card-head">
+            <h2>Next Deadline</h2>
+            <span class="badge badge--neutral">Schedule</span>
+          </div>
+          <p>Loading...</p>
+        </section>
+
+        <section id="summaryCard" class="card">
+          <div class="card-head">
+            <h2>Team Summary</h2>
+            <span class="badge badge--good">Live</span>
+          </div>
+          <p>Loading...</p>
+        </section>
+
+        <section id="trendsCard" class="card">
+          <div class="card-head">
+            <h2>Trends</h2>
+            <span class="badge badge--neutral">Form</span>
+          </div>
+          <div class="trend-block">
+            <h3>GW Points</h3>
+            <canvas id="pointsChart" aria-label="Gameweek points trend chart"></canvas>
+            <p class="chart-caption">Points (last 10)</p>
+          </div>
+          <div class="trend-block">
+            <h3>Overall Rank</h3>
+            <canvas id="rankChart" aria-label="Overall rank trend chart"></canvas>
+            <p class="chart-caption">Rank (last 10)</p>
+          </div>
+          <div class="trend-block">
+            <h3>Last 6 GWs</h3>
+            <div id="last6TableContainer">
+              <p class="muted">Loading...</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="linksCard" class="card">
+          <div class="card-head">
+            <h2>Links</h2>
+            <span class="badge badge--warn">External</span>
+          </div>
+          <ul>
+            <li>
+              <a href="https://fantasy.premierleague.com/entry/403618/history" target="_blank" rel="noopener noreferrer">
+                Team History (Official FPL)
+              </a>
+            </li>
+            <li>
+              <a href="https://fantasy.premierleague.com" target="_blank" rel="noopener noreferrer">
+                Fantasy Premier League
+              </a>
+            </li>
+          </ul>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <small>
+          Unofficial fan dashboard. Data and trademarks belong to their respective owners.
+        </small>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
