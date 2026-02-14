@@ -149,13 +149,23 @@ function setHighlightName(name) {
 }
 
 function parseCsvLine(line) {
+  const raw = String(line).trim();
+  const normalized = (
+    raw.length >= 2
+    && raw.startsWith('"')
+    && raw.endsWith('"')
+    && raw.includes(",")
+  )
+    ? raw.slice(1, -1)
+    : raw;
+
   const out = [];
   let cur = "";
   let inQuotes = false;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
+  for (let i = 0; i < normalized.length; i += 1) {
+    const ch = normalized[i];
     if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
+      if (inQuotes && normalized[i + 1] === '"') {
         cur += '"';
         i += 1;
       } else {
