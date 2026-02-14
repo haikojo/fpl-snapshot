@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.1.0 — Entry ID selection and sharing
+
+### Added
+- Entry ID selector to view any public Fantasy Premier League team
+- Shareable links using `?entry=ID` query parameter
+- Team name display in the summary panel for selected entry
+- Improved personalization when viewing shared dashboards
+
+### Notes
+- All data remains read-only and sourced from public FPL endpoints
+- No authentication or user data is stored
+
 ## v1.0.0 — Initial public release
 
 ### Added
