@@ -1,8 +1,6 @@
 const DEFAULT_ENTRY_ID = 403618;
 const TTL_MS = 10 * 60 * 1000;
-const BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/";
-const ENTRY_HISTORY_BASE_URL = "https://fantasy.premierleague.com/api/entry";
-const FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/";
+const FPL_SITE_BASE_URL = "https://fantasy.premierleague.com";
 const SETTINGS_KEY = "fpl_snapshot_settings";
 const ENTRY_ID_STORAGE_KEY = "fpl_selected_entry_id";
 const DEFAULT_PROXY_BASE_URL = "https://fpl-proxy.fpl-snapshot.workers.dev";
@@ -1053,24 +1051,28 @@ function getDataSourceLabel() {
   return settings.useProxy ? "Proxy" : "Direct";
 }
 
-function getBootstrapApiUrl() {
-  if (settings.useProxy) return `${settings.proxyBaseUrl}/bootstrap-static`;
-  return BOOTSTRAP_URL;
+function buildApiUrl(apiPath, queryParams = null) {
+  const cleanPath = `/${String(apiPath || "").replace(/^\/+/, "").replace(/\/+$/, "")}`;
+  const base = settings.useProxy
+    ? settings.proxyBaseUrl
+    : `${FPL_SITE_BASE_URL}/api`;
+  const normalizedBase = String(base || "").replace(/\/+$/, "");
+  const pathWithSlash = settings.useProxy ? cleanPath : `${cleanPath}/`;
+  const url = new URL(`${normalizedBase}${pathWithSlash}`);
+
+  if (queryParams && typeof queryParams === "object") {
+    Object.entries(queryParams).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") return;
+      url.searchParams.set(key, String(value));
+    });
+  }
+
+  return url.toString();
 }
 
-function getEntryHistoryApiUrl(entryId = activeEntryId) {
-  if (settings.useProxy) return `${settings.proxyBaseUrl}/entry/${entryId}/history`;
-  return `${ENTRY_HISTORY_BASE_URL}/${entryId}/history/`;
-}
-
-function getEntryDetailsApiUrl(entryId = activeEntryId) {
-  if (settings.useProxy) return `${settings.proxyBaseUrl}/entry/${entryId}`;
-  return `${ENTRY_HISTORY_BASE_URL}/${entryId}/`;
-}
-
-function getFixturesApiUrl(eventId) {
-  if (settings.useProxy) return `${settings.proxyBaseUrl}/fixtures?event=${eventId}`;
-  return `${FIXTURES_URL}?event=${eventId}`;
+function fplFetch(apiPath, options = {}) {
+  const { method = "GET", queryParams = null } = options;
+  return fetch(buildApiUrl(apiPath, queryParams), { method });
 }
 
 function getSourceCacheSuffix() {
@@ -1105,15 +1107,15 @@ function setCache(key, data) {
   }
 }
 
-async function fetchWithCache(url, cacheKey, forceRefresh = false) {
+async function fetchWithCache(apiPath, cacheKey, forceRefresh = false, queryParams = null) {
   if (!forceRefresh) {
     const cached = getCache(cacheKey);
     if (cached) return cached;
   }
 
-  const response = await fetch(url);
+  const response = await fplFetch(apiPath, { method: "GET", queryParams });
   if (!response.ok) {
-    throw new Error(`Request failed (${response.status}) for ${url}`);
+    throw new Error(`Request failed (${response.status}) for ${buildApiUrl(apiPath, queryParams)}`);
   }
 
   const data = await response.json();
@@ -1126,7 +1128,7 @@ function fetchBootstrap(forceRefresh = false) {
     throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
   }
   const cacheKey = `fpl_bootstrap_${getSourceCacheSuffix()}`;
-  return fetchWithCache(getBootstrapApiUrl(), cacheKey, forceRefresh);
+  return fetchWithCache("/bootstrap-static", cacheKey, forceRefresh);
 }
 
 function fetchEntryHistory(forceRefresh = false, entryId = activeEntryId) {
@@ -1134,7 +1136,7 @@ function fetchEntryHistory(forceRefresh = false, entryId = activeEntryId) {
     throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
   }
   const cacheKey = `fpl_entry_${entryId}_history_${getSourceCacheSuffix()}`;
-  return fetchWithCache(getEntryHistoryApiUrl(entryId), cacheKey, forceRefresh);
+  return fetchWithCache(`/entry/${entryId}/history`, cacheKey, forceRefresh);
 }
 
 function fetchEntryDetails(forceRefresh = false, entryId = activeEntryId) {
@@ -1142,7 +1144,7 @@ function fetchEntryDetails(forceRefresh = false, entryId = activeEntryId) {
     throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
   }
   const cacheKey = `fpl_entry_${entryId}_details_${getSourceCacheSuffix()}`;
-  return fetchWithCache(getEntryDetailsApiUrl(entryId), cacheKey, forceRefresh);
+  return fetchWithCache(`/entry/${entryId}`, cacheKey, forceRefresh);
 }
 
 function getEntryMetaLabel(entryDetails, entryId = activeEntryId) {
@@ -1175,7 +1177,7 @@ function fetchFixturesByEvent(eventId, forceRefresh = false) {
     throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
   }
   const cacheKey = `fpl_fixtures_event_${eventId}_${getSourceCacheSuffix()}`;
-  return fetchWithCache(getFixturesApiUrl(eventId), cacheKey, forceRefresh);
+  return fetchWithCache("/fixtures", cacheKey, forceRefresh, { event: eventId });
 }
 
 function formatDate(iso) {
