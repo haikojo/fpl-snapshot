@@ -18,6 +18,13 @@
           <button id="refreshBtn" type="button" class="btn" aria-label="Refresh data">Refresh</button>
         </div>
       </header>
+      <!-- Insert: subtle timestamp near top -->
+      <p id="lastUpdatedLabel" class="muted last-updated">Last updated --:--</p>
+      <!-- Insert: global error banner with retry -->
+      <div id="errorBanner" class="error-banner" hidden>
+        <span>Could not load data — retry?</span>
+        <button id="retryLoadBtn" type="button" class="btn btn-secondary btn-small">Retry</button>
+      </div>
       <section class="settings-row" aria-label="Data source settings">
         <label class="settings-toggle" for="useProxyToggle">
           <input id="useProxyToggle" type="checkbox" />
@@ -38,7 +45,7 @@
       <main class="cards" aria-live="polite">
         <section id="deadlineCard" class="card">
           <div class="card-head">
-            <h2>Next Deadline</h2>
+            <h2><span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.4"/><path d="M9 5.6v3.7l2.5 1.6"/></svg></span>Next Deadline</h2>
             <span class="badge badge--neutral">Schedule</span>
           </div>
           <p>Loading...</p>
@@ -46,7 +53,7 @@
 
         <section id="summaryCard" class="card">
           <div class="card-head">
-            <h2>Team Summary</h2>
+            <h2><span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.8l1.7 3.5 3.9.6-2.8 2.8.7 4-3.5-1.9-3.5 1.9.7-4-2.8-2.8 3.9-.6z"/></svg></span>Team Summary</h2>
             <span class="badge badge--good">Live</span>
           </div>
           <p>Loading...</p>
@@ -58,12 +65,12 @@
             <span class="badge badge--neutral">Form</span>
           </div>
           <div class="trend-block">
-            <h3>GW Points</h3>
+            <h3><span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.8l1.7 3.5 3.9.6-2.8 2.8.7 4-3.5-1.9-3.5 1.9.7-4-2.8-2.8 3.9-.6z"/></svg></span>GW Points</h3>
             <canvas id="pointsChart" aria-label="Gameweek points trend chart"></canvas>
             <p class="chart-caption">Points (last 10)</p>
           </div>
           <div class="trend-block">
-            <h3>Overall Rank</h3>
+            <h3><span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14V4"/><path d="M5.8 7.2L9 4l3.2 3.2"/></svg></span>Overall Rank</h3>
             <canvas id="rankChart" aria-label="Overall rank trend chart"></canvas>
             <p class="chart-caption">Rank (last 10)</p>
           </div>
@@ -80,7 +87,18 @@
             <h2>Links</h2>
             <span class="badge badge--warn">External</span>
           </div>
-          <ul>
+          <div class="links-about">
+            <h3 class="links-subheading">About this app</h3>
+            <p class="links-muted">
+              An unofficial Fantasy Premier League snapshot for quick check-ins between gameweeks.
+              Uses publicly available FPL data to show deadlines and performance trends.
+              Read-only and not affiliated with the Premier League or FPL.
+            </p>
+          </div>
+
+          <hr class="links-divider" />
+
+          <ul class="links-list">
             <li>
               <a href="https://fantasy.premierleague.com/entry/403618/history" target="_blank" rel="noopener noreferrer">
                 Team History (Official FPL)

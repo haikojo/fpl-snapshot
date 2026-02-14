@@ -18,6 +18,8 @@ const deadlineCard = document.getElementById("deadlineCard");
 const summaryCard = document.getElementById("summaryCard");
 const refreshBtn = document.getElementById("refreshBtn");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
+const errorBanner = document.getElementById("errorBanner");
+const retryLoadBtn = document.getElementById("retryLoadBtn");
 const useProxyToggle = document.getElementById("useProxyToggle");
 const proxyBaseUrlInput = document.getElementById("proxyBaseUrlInput");
 const saveProxySettingsBtn = document.getElementById("saveProxySettingsBtn");
@@ -40,10 +42,8 @@ function ensureLastUpdatedLabel() {
 
   const label = document.createElement("p");
   label.id = "lastUpdatedLabel";
-  label.className = "muted";
-  label.style.margin = "0 0 0.8rem";
-  label.style.fontSize = "0.82rem";
-  label.textContent = "Last updated: waiting for first load";
+  label.className = "muted last-updated";
+  label.textContent = "Last updated --:--";
   header.insertAdjacentElement("afterend", label);
   return label;
 }
@@ -54,7 +54,18 @@ function updateLastUpdated(value) {
   if (!lastUpdatedLabel) return;
   const dateValue = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(dateValue.getTime())) return;
-  lastUpdatedLabel.textContent = `Last updated: ${dateValue.toLocaleString()} (${getDataSourceLabel()})`;
+  const shortTime = dateValue.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  lastUpdatedLabel.textContent = `Last updated ${shortTime}`;
+}
+
+function showErrorBanner() {
+  if (!errorBanner) return;
+  errorBanner.hidden = false;
+}
+
+function hideErrorBanner() {
+  if (!errorBanner) return;
+  errorBanner.hidden = true;
 }
 
 function setRefreshButtonState(isLoading) {
@@ -285,6 +296,31 @@ function formatCountdown(targetIso) {
   return `${days}d ${hours}h ${minutes}m ${seconds}s`;
 }
 
+function iconClockSvg() {
+  return `<span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="9" r="6.4"/><path d="M9 5.6v3.7l2.5 1.6"/></svg></span>`;
+}
+
+function iconStarSvg() {
+  return `<span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.8l1.7 3.5 3.9.6-2.8 2.8.7 4-3.5-1.9-3.5 1.9.7-4-2.8-2.8 3.9-.6z"/></svg></span>`;
+}
+
+function iconRankSvg(direction = "neutral") {
+  if (direction === "up") {
+    return `<span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14V4"/><path d="M5.8 7.2L9 4l3.2 3.2"/></svg></span>`;
+  }
+  if (direction === "down") {
+    return `<span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4v10"/><path d="M5.8 10.8L9 14l3.2-3.2"/></svg></span>`;
+  }
+  return `<span class="mini-icon" aria-hidden="true"><svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 9h9"/></svg></span>`;
+}
+
+function iconForCardTitle(title) {
+  if (title === "Next Deadline") return iconClockSvg();
+  if (title === "Team Summary") return iconStarSvg();
+  if (title === "Trends") return iconRankSvg("neutral");
+  return "";
+}
+
 function badgePill(text, badgeClass = "badge--neutral") {
   return `<span class="badge ${badgeClass}">${text}</span>`;
 }
@@ -292,8 +328,8 @@ function badgePill(text, badgeClass = "badge--neutral") {
 function cardHead(title, badgeText, badgeClass = "badge--neutral", extraBadgesHtml = "") {
   return `
     <div class="card-head">
-      <h2>${title}</h2>
-      <div>
+      <h2>${iconForCardTitle(title)}${title}</h2>
+      <div class="card-head-meta">
         ${badgePill(badgeText, badgeClass)}
         ${extraBadgesHtml}
       </div>
@@ -303,27 +339,27 @@ function cardHead(title, badgeText, badgeClass = "badge--neutral", extraBadgesHt
 
 function getRankMovement(latestRank, previousRank) {
   if (!Number.isFinite(latestRank) || !Number.isFinite(previousRank)) {
-    return { text: "Rank move: n/a", badgeClass: "badge--neutral" };
+    return { text: "● n/a", badgeClass: "badge--neutral", direction: "neutral" };
   }
 
   const change = previousRank - latestRank;
   if (change > 0) {
-    return { text: `▲ ${Math.abs(change).toLocaleString()}`, badgeClass: "badge--good" };
+    return { text: `▲ ${Math.abs(change).toLocaleString()}`, badgeClass: "badge--good", direction: "up" };
   }
   if (change < 0) {
-    return { text: `▼ ${Math.abs(change).toLocaleString()}`, badgeClass: "badge--warn" };
+    return { text: `▼ ${Math.abs(change).toLocaleString()}`, badgeClass: "badge--warn", direction: "down" };
   }
-  return { text: "• 0", badgeClass: "badge--neutral" };
+  return { text: "● 0", badgeClass: "badge--neutral", direction: "neutral" };
 }
 
 function getFormLast5(current) {
   if (!Array.isArray(current) || current.length === 0) {
-    return { points: null, badgeClass: "badge--neutral", text: "Form5: n/a" };
+    return { points: null, badgeClass: "badge--neutral", text: "● Form5: n/a" };
   }
 
   const last5 = current.slice(-5);
   const points = last5.reduce((sum, gw) => sum + (Number(gw.points) || 0), 0);
-  return { points, badgeClass: "badge--neutral", text: `Form5: ${points}` };
+  return { points, badgeClass: "badge--neutral", text: `● Form5: ${points}` };
 }
 
 function getBestWorstBadges(current) {
@@ -488,15 +524,21 @@ function renderSummaryCard(current) {
   const momentum = getMomentum(current);
   const achievements = getAchievements(current);
   const bestWorst = getBestWorstBadges(current);
+  const form5Values = current.slice(-5).map((gw) => Number(gw.points));
   const shortHistoryMessage = current.length < 6
     ? `<p class="muted">Only ${current.length} gameweek${current.length === 1 ? "" : "s"} recorded so far.</p>`
     : "";
 
   summaryCard.innerHTML = `
-    ${cardHead("Team Summary", "Live", "badge--good", badgePill(formLast5.text, "badge--neutral"))}
-    <p><strong>Total points:</strong> ${totalPoints}</p>
+    ${cardHead(
+      "Team Summary",
+      "Live",
+      "badge--good",
+      `${badgePill(formLast5.text, "badge--neutral")}<span class="form-mini-wrap"><canvas id="form5Sparkline" aria-label="Form 5 sparkline"></canvas></span>`,
+    )}
+    <p><strong>${iconStarSvg()}Total points:</strong> ${totalPoints}</p>
     <p>
-      <strong>Latest overall rank:</strong> ${formatNumber(latestRank)}
+      <strong>${iconRankSvg(rankMovement.direction)}Latest overall rank:</strong> ${formatNumber(latestRank)}
       ${badgePill(rankMovement.text, rankMovement.badgeClass)}
     </p>
     <p>
@@ -517,6 +559,8 @@ function renderSummaryCard(current) {
     </div>
     ${shortHistoryMessage}
   `;
+
+  drawMiniSparkline(document.getElementById("form5Sparkline"), form5Values);
 }
 
 function fitCanvasToDisplaySize(canvas, fallbackHeight = 120) {
@@ -552,6 +596,89 @@ function drawCanvasMessage(canvas, message) {
   ctx.fillStyle = mutedColor;
   ctx.font = "12px sans-serif";
   ctx.fillText(message, 10, Math.floor(height / 2));
+  animateCanvasIn(canvas);
+}
+
+function drawCanvasSkeleton(canvas) {
+  if (!canvas) return;
+  fitCanvasToDisplaySize(canvas);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.width / ratio;
+  const height = canvas.height / ratio;
+
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = "#f2f2f2";
+  ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#cccccc";
+  ctx.fillRect(12, 18, width * 0.8, 10);
+  ctx.fillRect(12, 40, width * 0.6, 10);
+  ctx.fillRect(12, 62, width * 0.7, 10);
+}
+
+function animateCanvasIn(canvas) {
+  if (!canvas) return;
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  canvas.classList.remove("chart-fade-in");
+  requestAnimationFrame(() => {
+    canvas.classList.add("chart-fade-in");
+  });
+}
+
+function drawMiniSparkline(canvas, values) {
+  if (!canvas) return;
+
+  const ratio = window.devicePixelRatio || 1;
+  const cssWidth = 76;
+  const cssHeight = 18;
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+  canvas.style.width = `${cssWidth}px`;
+  canvas.style.height = `${cssHeight}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const width = canvas.width / ratio;
+  const height = canvas.height / ratio;
+  const safeValues = values.filter((v) => Number.isFinite(v));
+  const styles = getComputedStyle(document.documentElement);
+  const lineColor = styles.getPropertyValue("--chart-points").trim() || "#1f8f78";
+  const mutedColor = styles.getPropertyValue("--chart-grid").trim() || "#cfd9ea";
+
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (safeValues.length < 2) {
+    ctx.strokeStyle = mutedColor;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(4, Math.round(height / 2));
+    ctx.lineTo(width - 4, Math.round(height / 2));
+    ctx.stroke();
+    animateCanvasIn(canvas);
+    return;
+  }
+
+  const min = Math.min(...safeValues);
+  const max = Math.max(...safeValues);
+  const range = max - min || 1;
+  const stepX = (width - 8) / (safeValues.length - 1);
+
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  safeValues.forEach((value, index) => {
+    const x = 4 + index * stepX;
+    const y = height - 3 - ((value - min) / range) * (height - 6);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  animateCanvasIn(canvas);
 }
 
 function drawSparkline(canvas, values, color) {
@@ -616,6 +743,7 @@ function drawSparkline(canvas, values, color) {
   ctx.beginPath();
   ctx.arc(lastX, lastY, 2.8, 0, Math.PI * 2);
   ctx.fill();
+  animateCanvasIn(canvas);
 }
 
 function renderLast6Table(current) {
@@ -693,6 +821,7 @@ function renderTrendsCard(current) {
 function showError(message, detail) {
   const friendly = message || "We could not load FPL data right now. Please try again.";
   const detailPanel = renderErrorDetails(detail);
+  showErrorBanner();
 
   deadlineCard.innerHTML = `
     ${cardHead("Next Deadline", "Error", "badge--warn")}
@@ -727,26 +856,27 @@ function renderLoadingState() {
 
   deadlineCard.innerHTML = `
     ${cardHead("Next Deadline", "Syncing", "badge--neutral")}
-    <p class="muted">Loading latest deadline...</p>
-    <p class="muted">Preparing deadline countdown...</p>
+    <div class="skeleton-line w-80"></div>
+    <div class="skeleton-line w-60"></div>
   `;
 
   summaryCard.innerHTML = `
     ${cardHead("Team Summary", "Syncing", "badge--neutral")}
-    <p class="muted">Loading team summary...</p>
-    <p class="muted">Calculating form, rank move, and momentum...</p>
-    <p class="muted">Source: ${getDataSourceLabel()}</p>
+    <div class="skeleton-line w-80"></div>
+    <div class="skeleton-line w-60"></div>
+    <div class="skeleton-line w-40"></div>
   `;
 
   if (last6TableContainer) {
     last6TableContainer.innerHTML = `
-      <p class="muted">Loading gameweek history...</p>
-      <p class="muted">Preparing last 6 table...</p>
+      <div class="skeleton-line w-80"></div>
+      <div class="skeleton-line w-80"></div>
+      <div class="skeleton-line w-60"></div>
     `;
   }
 
-  drawCanvasMessage(pointsChart, "Loading points trend...");
-  drawCanvasMessage(rankChart, "Loading rank trend...");
+  drawCanvasSkeleton(pointsChart);
+  drawCanvasSkeleton(rankChart);
 }
 
 async function loadAndRender(forceRefresh = false) {
@@ -754,6 +884,7 @@ async function loadAndRender(forceRefresh = false) {
 
   const startedAt = Date.now();
   setRefreshButtonState(true);
+  hideErrorBanner();
   renderLoadingState();
 
   try {
@@ -767,6 +898,7 @@ async function loadAndRender(forceRefresh = false) {
     renderSummaryCard(current);
     renderTrendsCard(current);
     updateLastUpdated(new Date());
+    hideErrorBanner();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     showError("We hit a temporary issue fetching data.", detail);
@@ -783,6 +915,12 @@ refreshBtn.addEventListener("click", () => {
   if (refreshBtn.disabled) return;
   loadAndRender(true);
 });
+
+if (retryLoadBtn) {
+  retryLoadBtn.addEventListener("click", () => {
+    loadAndRender(true);
+  });
+}
 
 window.addEventListener("resize", () => {
   renderTrendsCard(lastRenderedHistory);
