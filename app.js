@@ -36,6 +36,7 @@ const leagueStatus = document.getElementById("leagueStatus");
 const highlightSelect = document.getElementById("highlightSelect");
 const highlightNameInput = document.getElementById("highlightNameInput");
 const leagueContent = document.getElementById("leagueContent");
+const leagueOverviewContent = document.getElementById("leagueOverviewContent");
 
 const DEFAULT_REFRESH_LABEL = "Refresh";
 const LEAGUE_HISTORY_KEY = "fpl_private_league_history";
@@ -43,6 +44,7 @@ const LEAGUE_HIGHLIGHT_KEY = "fpl_private_league_highlight_name";
 let countdownInterval = null;
 let lastRenderedHistory = [];
 let currentTheme = "light";
+let hiddenLeagueTeams = new Set();
 const lastUpdatedLabel = document.getElementById("lastUpdatedLabel");
 
 function updateLastUpdated(value) {
@@ -279,6 +281,247 @@ function buildLeagueSeries(snapshots, highlightName) {
   return { sorted, rankSeries, pointsGap };
 }
 
+function hashString(value) {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function getTeamColor(name) {
+  const hue = hashString(String(name)) % 360;
+  return `hsl(${hue} 68% 46%)`;
+}
+
+function getLeagueOverviewData(snapshots) {
+  const sortedSnapshots = [...snapshots].sort((a, b) => a.gw - b.gw);
+  const gws = sortedSnapshots.map((s) => s.gw);
+  const teamSet = new Set();
+  sortedSnapshots.forEach((snapshot) => {
+    snapshot.rows.forEach((row) => {
+      teamSet.add(row.name);
+    });
+  });
+  const teamNames = Array.from(teamSet).sort((a, b) => a.localeCompare(b));
+
+  const teamSeries = teamNames.map((name) => {
+    const values = sortedSnapshots.map((snapshot) => {
+      const row = snapshot.rows.find((r) => r.name === name);
+      return {
+        gw: snapshot.gw,
+        value: row ? Number(row.rank) : null,
+      };
+    });
+    return {
+      name,
+      color: getTeamColor(name),
+      values,
+    };
+  });
+
+  return { gws, teamSeries };
+}
+
+function getNiceRankStep(maxRank) {
+  if (maxRank <= 6) return 1;
+  if (maxRank <= 12) return 2;
+  if (maxRank <= 20) return 5;
+  if (maxRank <= 40) return 10;
+  return Math.max(10, Math.ceil(maxRank / 5));
+}
+
+function drawLeagueOverviewChart(canvas, gws, teamSeries, highlightName) {
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const cssWidth = Math.max(canvas.clientWidth || 680, 300);
+  const cssHeight = 360;
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+  canvas.style.height = `${cssHeight}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const width = canvas.width / ratio;
+  const height = canvas.height / ratio;
+  const pad = { left: 46, right: 14, top: 16, bottom: 34 };
+  const styles = getComputedStyle(document.documentElement);
+  const grid = styles.getPropertyValue("--chart-grid").trim() || "#d2dde9";
+  const text = styles.getPropertyValue("--muted").trim() || "#6b7280";
+  const axis = styles.getPropertyValue("--border-strong").trim() || "#c3cfdd";
+
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = styles.getPropertyValue("--chart-bg").trim() || "#f5f8fc";
+  ctx.fillRect(0, 0, width, height);
+
+  const allValues = teamSeries.flatMap((team) => team.values.map((v) => v.value).filter((v) => Number.isFinite(v)));
+  const maxRank = Math.max(1, ...allValues, teamSeries.length);
+  const yStep = getNiceRankStep(maxRank);
+  const yTicks = [];
+  for (let rank = 1; rank <= maxRank; rank += yStep) yTicks.push(rank);
+  if (yTicks[yTicks.length - 1] !== maxRank) yTicks.push(maxRank);
+
+  const chartW = width - pad.left - pad.right;
+  const chartH = height - pad.top - pad.bottom;
+  const minGw = Math.min(...gws);
+  const maxGw = Math.max(...gws);
+  const gwRange = maxGw - minGw || 1;
+
+  ctx.strokeStyle = grid;
+  ctx.lineWidth = 1;
+  yTicks.forEach((tick) => {
+    const norm = (tick - 1) / ((maxRank - 1) || 1);
+    const y = pad.top + norm * chartH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(width - pad.right, y);
+    ctx.stroke();
+  });
+
+  ctx.fillStyle = text;
+  ctx.font = "12px sans-serif";
+  yTicks.forEach((tick) => {
+    const norm = (tick - 1) / ((maxRank - 1) || 1);
+    const y = pad.top + norm * chartH;
+    ctx.fillText(String(tick), 8, y + 4);
+  });
+
+  const xTickStride = Math.max(1, Math.ceil(gws.length / 8));
+  gws.forEach((gw, index) => {
+    if (index % xTickStride !== 0 && index !== gws.length - 1) return;
+    const x = pad.left + ((gw - minGw) / gwRange) * chartW;
+    ctx.strokeStyle = grid;
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, height - pad.bottom);
+    ctx.stroke();
+
+    ctx.fillStyle = text;
+    ctx.fillText(String(gw), x - 8, height - 12);
+  });
+
+  ctx.strokeStyle = axis;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad.left, pad.top, chartW, chartH);
+  ctx.fillStyle = text;
+  ctx.fillText("GW", width - 28, height - 8);
+  ctx.fillText("Rank (1 is best)", 8, 12);
+
+  teamSeries.forEach((team) => {
+    if (hiddenLeagueTeams.has(team.name) && team.name !== highlightName) return;
+    const isHighlighted = team.name === highlightName;
+    ctx.strokeStyle = team.color;
+    ctx.lineWidth = isHighlighted ? 3 : 1.4;
+    ctx.globalAlpha = isHighlighted ? 1 : 0.32;
+    ctx.beginPath();
+    let started = false;
+
+    team.values.forEach((point) => {
+      if (!Number.isFinite(point.value)) {
+        started = false;
+        return;
+      }
+      const x = pad.left + ((point.gw - minGw) / gwRange) * chartW;
+      const y = pad.top + ((point.value - 1) / ((maxRank - 1) || 1)) * chartH;
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+
+    ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+}
+
+function renderLeagueOverviewCard(snapshots, highlightName) {
+  if (!leagueOverviewContent) return;
+  if (!Array.isArray(snapshots) || snapshots.length === 0) {
+    leagueOverviewContent.innerHTML = `
+      <p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>
+    `;
+    return;
+  }
+
+  const { gws, teamSeries } = getLeagueOverviewData(snapshots);
+  hiddenLeagueTeams = new Set(
+    Array.from(hiddenLeagueTeams).filter((name) => teamSeries.some((team) => team.name === name)),
+  );
+  if (highlightName) hiddenLeagueTeams.delete(highlightName);
+
+  const legendItems = teamSeries.map((team) => {
+    const isHighlighted = team.name === highlightName;
+    const isHidden = hiddenLeagueTeams.has(team.name) && !isHighlighted;
+    return `
+      <button
+        type="button"
+        class="pl-legend-item ${isHidden ? "is-hidden" : ""} ${isHighlighted ? "is-locked" : ""}"
+        data-team-name="${escapeHtml(team.name)}"
+        title="${isHighlighted ? "Highlighted team stays visible" : "Toggle line visibility"}"
+      >
+        <span class="pl-legend-swatch" style="background:${team.color};"></span>
+        <span>${escapeHtml(team.name)}</span>
+      </button>
+    `;
+  }).join("");
+
+  leagueOverviewContent.innerHTML = `
+    <div class="pl-overview-tools">
+      <p class="pl-overview-highlight">
+        Highlight: <span class="badge badge--neutral">${escapeHtml(highlightName || "None")}</span>
+      </p>
+      <div class="pl-overview-actions">
+        <button id="leagueShowAllBtn" type="button" class="btn btn-secondary btn-small">Show all</button>
+        <button id="leagueHideAllBtn" type="button" class="btn btn-secondary btn-small">Hide all</button>
+      </div>
+    </div>
+    <canvas id="leagueAllRankChart" class="pl-overview-canvas" aria-label="Private league all teams rank over time chart"></canvas>
+    <p class="pl-overview-note">Rank 1 is best (top).</p>
+    <div id="leagueAllLegend" class="pl-overview-legend">${legendItems}</div>
+  `;
+
+  drawLeagueOverviewChart(
+    document.getElementById("leagueAllRankChart"),
+    gws,
+    teamSeries,
+    highlightName,
+  );
+
+  const legend = document.getElementById("leagueAllLegend");
+  if (legend) {
+    legend.addEventListener("click", (event) => {
+      const button = event.target.closest(".pl-legend-item");
+      if (!button) return;
+      const teamName = button.getAttribute("data-team-name");
+      if (!teamName || teamName === highlightName) return;
+      if (hiddenLeagueTeams.has(teamName)) hiddenLeagueTeams.delete(teamName);
+      else hiddenLeagueTeams.add(teamName);
+      renderLeagueOverviewCard(snapshots, highlightName);
+    });
+  }
+
+  const showAllBtn = document.getElementById("leagueShowAllBtn");
+  if (showAllBtn) {
+    showAllBtn.addEventListener("click", () => {
+      hiddenLeagueTeams.clear();
+      renderLeagueOverviewCard(snapshots, highlightName);
+    });
+  }
+
+  const hideAllBtn = document.getElementById("leagueHideAllBtn");
+  if (hideAllBtn) {
+    hideAllBtn.addEventListener("click", () => {
+      hiddenLeagueTeams = new Set(teamSeries.map((team) => team.name));
+      if (highlightName) hiddenLeagueTeams.delete(highlightName);
+      renderLeagueOverviewCard(snapshots, highlightName);
+    });
+  }
+}
+
 function drawLeagueLineChart(canvas, points, labelText, invertY = false) {
   if (!canvas) return;
   const ratio = window.devicePixelRatio || 1;
@@ -386,6 +629,7 @@ function renderLeagueCard() {
 
   if (!snapshots.length) {
     leagueContent.innerHTML = `<p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>`;
+    renderLeagueOverviewCard([], highlightName);
     return;
   }
 
@@ -422,6 +666,8 @@ function renderLeagueCard() {
     "Gap to leader",
     false,
   );
+
+  renderLeagueOverviewCard(snapshots, highlightName);
 }
 
 function upsertSnapshot(snapshot) {
@@ -562,6 +808,7 @@ function initializeTheme() {
       // Ignore storage access issues.
     }
     renderTrendsCard(lastRenderedHistory);
+    renderLeagueCard();
   });
 }
 
