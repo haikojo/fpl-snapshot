@@ -237,6 +237,49 @@ h1 {
   opacity: 0.5;
 }
 
+.entry-controls {
+  margin-top: 0.42rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  position: relative;
+  z-index: 1;
+}
+
+.entry-controls label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.entry-controls input {
+  width: 132px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.34rem 0.45rem;
+  font-size: 0.85rem;
+}
+
+.entry-controls input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.entry-feedback {
+  font-size: 0.78rem;
+  min-height: 1em;
+}
+
+.entry-hint {
+  margin: 0.32rem 0 0;
+  font-size: 0.78rem;
+  position: relative;
+  z-index: 1;
+}
+
 .last-updated {
   color: #777;
 }
@@ -1074,6 +1117,12 @@ canvas {
 
   .kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .entry-controls input {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
   }
 
   .pl-overview-canvas {

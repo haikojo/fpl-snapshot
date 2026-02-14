@@ -48,8 +48,19 @@
             <span class="status-sep">•</span>
             Mode: <span id="modeValueText">Proxy</span>
             <span class="status-sep">•</span>
+            Entry: <span id="activeEntryIdLabel">403618</span>
+            <span class="status-sep">•</span>
             Last updated <span id="lastUpdatedLabel">--:--</span>
           </p>
+          <div class="entry-controls" aria-label="Entry selector">
+            <label for="entryIdInput">Entry ID</label>
+            <input id="entryIdInput" type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 403618" />
+            <button id="loadEntryBtn" type="button" class="btn btn-secondary btn-small">Load</button>
+            <button id="copyShareLinkBtn" type="button" class="btn btn-secondary btn-small">Copy share link</button>
+            <button id="resetEntryBtn" type="button" class="btn btn-secondary btn-small">Reset</button>
+            <span id="copyShareStatus" class="muted entry-feedback" aria-live="polite"></span>
+          </div>
+          <p class="entry-hint muted">Public FPL entry ID (read-only).</p>
         </div>
         <div class="header-actions">
           <button id="themeToggleBtn" type="button" class="btn btn-secondary" aria-label="Toggle light or dark mode">Light/Dark</button>
@@ -267,7 +278,7 @@
 
           <ul class="links-list">
             <li>
-              <a href="https://fantasy.premierleague.com/entry/403618/history" target="_blank" rel="noopener noreferrer">
+              <a id="officialTeamHistoryLink" href="https://fantasy.premierleague.com/entry/403618/history" target="_blank" rel="noopener noreferrer">
                 Team History (Official FPL)
               </a>
             </li>

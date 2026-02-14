@@ -1,9 +1,10 @@
-const TEAM_ID = 403618;
+const DEFAULT_ENTRY_ID = 403618;
 const TTL_MS = 10 * 60 * 1000;
 const BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/";
-const ENTRY_HISTORY_URL = `https://fantasy.premierleague.com/api/entry/${TEAM_ID}/history/`;
+const ENTRY_HISTORY_BASE_URL = "https://fantasy.premierleague.com/api/entry";
 const FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/";
 const SETTINGS_KEY = "fpl_snapshot_settings";
+const ENTRY_ID_STORAGE_KEY = "fpl_selected_entry_id";
 const DEFAULT_PROXY_BASE_URL = "https://fpl-proxy.fpl-snapshot.workers.dev";
 
 function isGitHubPages() {
@@ -26,6 +27,13 @@ const proxyBaseUrlInput = document.getElementById("proxyBaseUrlInput");
 const saveProxySettingsBtn = document.getElementById("saveProxySettingsBtn");
 const modeLabel = document.getElementById("modeLabel");
 const modeValueText = document.getElementById("modeValueText");
+const activeEntryIdLabel = document.getElementById("activeEntryIdLabel");
+const entryIdInput = document.getElementById("entryIdInput");
+const loadEntryBtn = document.getElementById("loadEntryBtn");
+const copyShareLinkBtn = document.getElementById("copyShareLinkBtn");
+const resetEntryBtn = document.getElementById("resetEntryBtn");
+const copyShareStatus = document.getElementById("copyShareStatus");
+const officialTeamHistoryLink = document.getElementById("officialTeamHistoryLink");
 const pointsChart = document.getElementById("pointsChart");
 const rankChart = document.getElementById("rankChart");
 const last6TableContainer = document.getElementById("last6TableContainer");
@@ -46,6 +54,8 @@ let countdownInterval = null;
 let lastRenderedHistory = [];
 let currentTheme = "light";
 let hiddenLeagueTeams = new Set();
+let activeEntryId = DEFAULT_ENTRY_ID;
+let entryFeedbackTimeout = null;
 const lastUpdatedLabel = document.getElementById("lastUpdatedLabel");
 
 function updateLastUpdated(value) {
@@ -111,6 +121,166 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function parseEntryId(value) {
+  const normalized = String(value ?? "").trim();
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function getEntryIdFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  return parseEntryId(params.get("entry"));
+}
+
+function getEntryIdFromStorage() {
+  try {
+    return parseEntryId(localStorage.getItem(ENTRY_ID_STORAGE_KEY));
+  } catch {
+    return null;
+  }
+}
+
+function setEntryFeedback(message, isError = false) {
+  if (!copyShareStatus) return;
+  copyShareStatus.textContent = message;
+  copyShareStatus.classList.toggle("pl-status-error", isError);
+  if (entryFeedbackTimeout) clearTimeout(entryFeedbackTimeout);
+  if (message) {
+    entryFeedbackTimeout = setTimeout(() => {
+      copyShareStatus.textContent = "";
+      copyShareStatus.classList.remove("pl-status-error");
+    }, 1800);
+  }
+}
+
+function updateEntryUi() {
+  if (activeEntryIdLabel) activeEntryIdLabel.textContent = String(activeEntryId);
+  if (entryIdInput) entryIdInput.value = String(activeEntryId);
+  if (officialTeamHistoryLink) {
+    officialTeamHistoryLink.href = `https://fantasy.premierleague.com/entry/${activeEntryId}/history`;
+  }
+}
+
+function setEntryQueryParam(entryId, includeParam = true) {
+  const url = new URL(window.location.href);
+  if (includeParam) url.searchParams.set("entry", String(entryId));
+  else url.searchParams.delete("entry");
+  history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+function resolveInitialEntryId() {
+  const fromQuery = getEntryIdFromQuery();
+  if (fromQuery) return fromQuery;
+  const fromStorage = getEntryIdFromStorage();
+  if (fromStorage) return fromStorage;
+  return DEFAULT_ENTRY_ID;
+}
+
+function applyEntryId(entryId, options = {}) {
+  const {
+    persist = true,
+    includeQueryParam = true,
+    clearStored = false,
+  } = options;
+
+  activeEntryId = entryId;
+
+  if (clearStored) {
+    try {
+      localStorage.removeItem(ENTRY_ID_STORAGE_KEY);
+    } catch {
+      // Ignore storage errors.
+    }
+  } else if (persist) {
+    try {
+      localStorage.setItem(ENTRY_ID_STORAGE_KEY, String(entryId));
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
+  setEntryQueryParam(entryId, includeQueryParam);
+  updateEntryUi();
+}
+
+function getShareUrl() {
+  return `${window.location.origin}${window.location.pathname}?entry=${activeEntryId}`;
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "absolute";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+}
+
+function initializeEntryControls() {
+  const queryEntry = getEntryIdFromQuery();
+  const initialEntryId = resolveInitialEntryId();
+  applyEntryId(initialEntryId, {
+    persist: true,
+    includeQueryParam: Boolean(queryEntry),
+  });
+
+  if (loadEntryBtn) {
+    loadEntryBtn.addEventListener("click", () => {
+      const parsed = parseEntryId(entryIdInput?.value);
+      if (!parsed) {
+        setEntryFeedback("Enter a valid positive Entry ID.", true);
+        return;
+      }
+      applyEntryId(parsed, {
+        persist: true,
+        includeQueryParam: true,
+      });
+      loadAndRender(true);
+    });
+  }
+
+  if (entryIdInput) {
+    entryIdInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      loadEntryBtn?.click();
+    });
+  }
+
+  if (resetEntryBtn) {
+    resetEntryBtn.addEventListener("click", () => {
+      applyEntryId(DEFAULT_ENTRY_ID, {
+        persist: false,
+        includeQueryParam: false,
+        clearStored: true,
+      });
+      setEntryFeedback("Entry reset.");
+      loadAndRender(true);
+    });
+  }
+
+  if (copyShareLinkBtn) {
+    copyShareLinkBtn.addEventListener("click", async () => {
+      try {
+        await copyTextToClipboard(getShareUrl());
+        setEntryFeedback("Link copied.");
+      } catch {
+        setEntryFeedback("Could not copy link.", true);
+      }
+    });
+  }
 }
 
 function setLeagueStatus(message, isError = false) {
@@ -888,9 +1058,9 @@ function getBootstrapApiUrl() {
   return BOOTSTRAP_URL;
 }
 
-function getEntryHistoryApiUrl() {
-  if (settings.useProxy) return `${settings.proxyBaseUrl}/entry/${TEAM_ID}/history`;
-  return ENTRY_HISTORY_URL;
+function getEntryHistoryApiUrl(entryId = activeEntryId) {
+  if (settings.useProxy) return `${settings.proxyBaseUrl}/entry/${entryId}/history`;
+  return `${ENTRY_HISTORY_BASE_URL}/${entryId}/history/`;
 }
 
 function getFixturesApiUrl(eventId) {
@@ -954,12 +1124,12 @@ function fetchBootstrap(forceRefresh = false) {
   return fetchWithCache(getBootstrapApiUrl(), cacheKey, forceRefresh);
 }
 
-function fetchEntryHistory(forceRefresh = false) {
+function fetchEntryHistory(forceRefresh = false, entryId = activeEntryId) {
   if (settings.useProxy && !settings.proxyBaseUrl) {
     throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
   }
-  const cacheKey = `fpl_entry_${TEAM_ID}_history_${getSourceCacheSuffix()}`;
-  return fetchWithCache(getEntryHistoryApiUrl(), cacheKey, forceRefresh);
+  const cacheKey = `fpl_entry_${entryId}_history_${getSourceCacheSuffix()}`;
+  return fetchWithCache(getEntryHistoryApiUrl(entryId), cacheKey, forceRefresh);
 }
 
 function fetchFixturesByEvent(eventId, forceRefresh = false) {
@@ -1830,7 +2000,7 @@ async function loadAndRender(forceRefresh = false) {
   try {
     const [bootstrap, history] = await Promise.all([
       fetchBootstrap(forceRefresh),
-      fetchEntryHistory(forceRefresh),
+      fetchEntryHistory(forceRefresh, activeEntryId),
     ]);
 
     const current = history.current || [];
@@ -1849,10 +2019,17 @@ async function loadAndRender(forceRefresh = false) {
     renderTrendsCard(current);
     pulseGameweekIconOnce();
     updateLastUpdated(new Date());
+    updateEntryUi();
     hideErrorBanner();
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    showError("We hit a temporary issue fetching data.", detail);
+    const entryMarker = `/entry/${activeEntryId}/history`;
+    const entryLoadFailed = detail.includes(entryMarker) || detail.includes(`entry/${activeEntryId}/history`);
+    if (entryLoadFailed) {
+      showError(`Could not load entry ${activeEntryId}. Check the ID and try again.`, detail);
+    } else {
+      showError("We hit a temporary issue fetching data.", detail);
+    }
   } finally {
     const elapsed = Date.now() - startedAt;
     if (elapsed < 500) {
@@ -1880,5 +2057,6 @@ window.addEventListener("resize", () => {
 
 initializeTheme();
 initializeDataSourceSettings();
+initializeEntryControls();
 initializePrivateLeague();
 loadAndRender();
