@@ -1063,6 +1063,11 @@ function getEntryHistoryApiUrl(entryId = activeEntryId) {
   return `${ENTRY_HISTORY_BASE_URL}/${entryId}/history/`;
 }
 
+function getEntryDetailsApiUrl(entryId = activeEntryId) {
+  if (settings.useProxy) return `${settings.proxyBaseUrl}/entry/${entryId}`;
+  return `${ENTRY_HISTORY_BASE_URL}/${entryId}/`;
+}
+
 function getFixturesApiUrl(eventId) {
   if (settings.useProxy) return `${settings.proxyBaseUrl}/fixtures?event=${eventId}`;
   return `${FIXTURES_URL}?event=${eventId}`;
@@ -1130,6 +1135,36 @@ function fetchEntryHistory(forceRefresh = false, entryId = activeEntryId) {
   }
   const cacheKey = `fpl_entry_${entryId}_history_${getSourceCacheSuffix()}`;
   return fetchWithCache(getEntryHistoryApiUrl(entryId), cacheKey, forceRefresh);
+}
+
+function fetchEntryDetails(forceRefresh = false, entryId = activeEntryId) {
+  if (settings.useProxy && !settings.proxyBaseUrl) {
+    throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
+  }
+  const cacheKey = `fpl_entry_${entryId}_details_${getSourceCacheSuffix()}`;
+  return fetchWithCache(getEntryDetailsApiUrl(entryId), cacheKey, forceRefresh);
+}
+
+function getEntryMetaLabel(entryDetails, entryId = activeEntryId) {
+  const safeEntryId = Number.isFinite(Number(entryId)) ? Number(entryId) : DEFAULT_ENTRY_ID;
+  const rawTeamName = typeof entryDetails?.name === "string" ? entryDetails.name.trim() : "";
+  const teamName = rawTeamName || `Team ${safeEntryId}`;
+
+  const firstName = typeof entryDetails?.player_first_name === "string"
+    ? entryDetails.player_first_name.trim()
+    : "";
+  const lastName = typeof entryDetails?.player_last_name === "string"
+    ? entryDetails.player_last_name.trim()
+    : "";
+
+  let managerName = "";
+  if (firstName && lastName) {
+    managerName = `${firstName} ${lastName[0]}.`;
+  } else if (firstName) {
+    managerName = firstName;
+  }
+
+  return { teamName, managerName };
 }
 
 function fetchFixturesByEvent(eventId, forceRefresh = false) {
@@ -1589,7 +1624,7 @@ function renderDeadlineCard(events, currentHistory = [], teams = [], fixtures = 
   countdownInterval = setInterval(render, 1000);
 }
 
-function renderSummaryCard(current, totalPlayers = null) {
+function renderSummaryCard(current, totalPlayers = null, entryMeta = null) {
   if (!Array.isArray(current) || current.length === 0) {
     summaryCard.innerHTML = `
       ${cardHead("Team Summary", "No Data", "badge--warn")}
@@ -1609,6 +1644,11 @@ function renderSummaryCard(current, totalPlayers = null) {
   const form5Values = current.slice(-5).map((gw) => Number(gw.points));
   const last6Stats = computeLast6Stats(current);
   const rankPercentile = computeRankPercentile(Number(latestRank), Number(totalPlayers));
+  const safeEntryMeta = entryMeta || getEntryMetaLabel(null, activeEntryId);
+  const teamNameHtml = escapeHtml(safeEntryMeta.teamName);
+  const managerHtml = safeEntryMeta.managerName
+    ? `<p class="helper-note">Manager: ${escapeHtml(safeEntryMeta.managerName)}</p>`
+    : "";
   const shortHistoryMessage = current.length < 6
     ? `<p class="muted">Only ${current.length} gameweek${current.length === 1 ? "" : "s"} recorded so far.</p>`
     : "";
@@ -1620,6 +1660,8 @@ function renderSummaryCard(current, totalPlayers = null) {
       "badge--good",
       `${badgePill(formLast5.text, "badge--neutral")}<span class="form-mini-wrap"><canvas id="form5Sparkline" aria-label="Form 5 sparkline"></canvas></span>`,
     )}
+    <p><strong>${teamNameHtml}</strong></p>
+    ${managerHtml}
     <p><strong>${iconStarSvg()}Total points:</strong> ${totalPoints}</p>
     <p>
       <strong>${iconRankSvg(rankMovement.direction)}Latest overall rank:</strong> ${formatNumber(latestRank)}
@@ -1998,12 +2040,14 @@ async function loadAndRender(forceRefresh = false) {
   renderLoadingState();
 
   try {
-    const [bootstrap, history] = await Promise.all([
+    const [bootstrap, history, entryDetails] = await Promise.all([
       fetchBootstrap(forceRefresh),
       fetchEntryHistory(forceRefresh, activeEntryId),
+      fetchEntryDetails(forceRefresh, activeEntryId).catch(() => null),
     ]);
 
     const current = history.current || [];
+    const entryMeta = getEntryMetaLabel(entryDetails, activeEntryId);
     let fixtures = null;
     const nextEvent = getNextDeadlineEvent(bootstrap.events || []);
     if (nextEvent?.id) {
@@ -2015,7 +2059,7 @@ async function loadAndRender(forceRefresh = false) {
     }
 
     renderDeadlineCard(bootstrap.events || [], current, bootstrap.teams || [], fixtures);
-    renderSummaryCard(current, bootstrap.total_players);
+    renderSummaryCard(current, bootstrap.total_players, entryMeta);
     renderTrendsCard(current);
     pulseGameweekIconOnce();
     updateLastUpdated(new Date());
