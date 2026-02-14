@@ -115,6 +115,32 @@
           </div>
         </section>
 
+        <section id="privateLeagueCard" class="card">
+          <div class="card-head">
+            <h2>Private League (Manual Snapshot)</h2>
+            <span class="badge badge--neutral">Local</span>
+          </div>
+          <div class="pl-controls">
+            <label for="leagueCsvInput">Upload CSV</label>
+            <input id="leagueCsvInput" type="file" accept=".csv,text/csv" />
+            <div class="pl-button-row">
+              <button id="importLeagueBtn" type="button" class="btn btn-secondary">Import snapshot</button>
+              <button id="loadDemoLeagueBtn" type="button" class="btn btn-secondary">Load demo data</button>
+              <button id="clearLeagueBtn" type="button" class="btn btn-secondary">Clear league history</button>
+            </div>
+            <div class="pl-highlight-row">
+              <label for="highlightSelect">Your entry</label>
+              <select id="highlightSelect"></select>
+              <label for="highlightNameInput">Highlight name</label>
+              <input id="highlightNameInput" type="text" placeholder="Your Team" />
+            </div>
+            <p id="leagueStatus" class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>
+          </div>
+          <div id="leagueContent" class="pl-content">
+            <p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>
+          </div>
+        </section>
+
         <section id="linksCard" class="card">
           <div class="card-head">
             <h2>Links</h2>

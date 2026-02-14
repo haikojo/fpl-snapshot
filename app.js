@@ -28,8 +28,18 @@ const modeValueText = document.getElementById("modeValueText");
 const pointsChart = document.getElementById("pointsChart");
 const rankChart = document.getElementById("rankChart");
 const last6TableContainer = document.getElementById("last6TableContainer");
+const leagueCsvInput = document.getElementById("leagueCsvInput");
+const importLeagueBtn = document.getElementById("importLeagueBtn");
+const loadDemoLeagueBtn = document.getElementById("loadDemoLeagueBtn");
+const clearLeagueBtn = document.getElementById("clearLeagueBtn");
+const leagueStatus = document.getElementById("leagueStatus");
+const highlightSelect = document.getElementById("highlightSelect");
+const highlightNameInput = document.getElementById("highlightNameInput");
+const leagueContent = document.getElementById("leagueContent");
 
 const DEFAULT_REFRESH_LABEL = "Refresh";
+const LEAGUE_HISTORY_KEY = "fpl_private_league_history";
+const LEAGUE_HIGHLIGHT_KEY = "fpl_private_league_highlight_name";
 let countdownInterval = null;
 let lastRenderedHistory = [];
 let currentTheme = "light";
@@ -98,6 +108,412 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function setLeagueStatus(message, isError = false) {
+  if (!leagueStatus) return;
+  leagueStatus.textContent = message;
+  leagueStatus.classList.toggle("pl-status-error", isError);
+}
+
+function readLeagueHistory() {
+  try {
+    const raw = localStorage.getItem(LEAGUE_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLeagueHistory(snapshots) {
+  localStorage.setItem(LEAGUE_HISTORY_KEY, JSON.stringify(snapshots));
+}
+
+function getHighlightName() {
+  try {
+    return localStorage.getItem(LEAGUE_HIGHLIGHT_KEY) || "Your Team";
+  } catch {
+    return "Your Team";
+  }
+}
+
+function setHighlightName(name) {
+  const value = String(name || "").trim();
+  try {
+    localStorage.setItem(LEAGUE_HIGHLIGHT_KEY, value);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function parseCsvLine(line) {
+  const out = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === "," && !inQuotes) {
+      out.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function parseLeagueCsv(text) {
+  const lines = String(text)
+    .replace(/^\uFEFF/, "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (lines.length === 0) throw new Error("CSV is empty.");
+
+  const first = parseCsvLine(lines[0]).map((v) => v.toLowerCase());
+  const isHeader = first.includes("gw") || first.includes("name") || first.includes("points") || first.includes("rank");
+  const startIdx = isHeader ? 1 : 0;
+
+  const rows = [];
+  for (let i = startIdx; i < lines.length; i += 1) {
+    const cols = parseCsvLine(lines[i]);
+    if (cols.length < 4) throw new Error(`Invalid row ${i + 1}: expected 4 columns.`);
+    const gw = Number(cols[0]);
+    const name = String(cols[1] || "").trim();
+    const points = Number(cols[2]);
+    const rank = Number(cols[3]);
+    if (!Number.isFinite(gw) || !Number.isInteger(gw)) throw new Error(`Invalid gw at row ${i + 1}.`);
+    if (!name) throw new Error(`Missing name at row ${i + 1}.`);
+    if (!Number.isFinite(points)) throw new Error(`Invalid points at row ${i + 1}.`);
+    if (!Number.isFinite(rank)) throw new Error(`Invalid rank at row ${i + 1}.`);
+    rows.push({ gw, name, points, rank });
+  }
+
+  if (!rows.length) throw new Error("No data rows found in CSV.");
+
+  const gw = rows[0].gw;
+  const mixedGw = rows.some((row) => row.gw !== gw);
+  if (mixedGw) throw new Error("CSV must contain a single GW snapshot.");
+
+  const snapshotRows = rows
+    .map((row) => ({ name: row.name, points: row.points, rank: row.rank }))
+    .sort((a, b) => a.rank - b.rank);
+
+  return { gw, rows: snapshotRows };
+}
+
+function getLeagueNames(snapshots) {
+  const set = new Set();
+  snapshots.forEach((snap) => snap.rows.forEach((row) => set.add(row.name)));
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
+}
+
+function renderHighlightControls(snapshots) {
+  if (!highlightSelect || !highlightNameInput) return;
+  const names = getLeagueNames(snapshots);
+  const saved = getHighlightName();
+  const current = saved || "Your Team";
+
+  highlightSelect.innerHTML = "";
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "Custom...";
+  highlightSelect.appendChild(blank);
+
+  names.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    highlightSelect.appendChild(option);
+  });
+
+  if (names.includes(current)) {
+    highlightSelect.value = current;
+  } else {
+    highlightSelect.value = "";
+  }
+  highlightNameInput.value = current;
+}
+
+function buildLeagueSeries(snapshots, highlightName) {
+  const sorted = [...snapshots].sort((a, b) => a.gw - b.gw);
+  const pointsGap = [];
+  const rankSeries = [];
+
+  sorted.forEach((snap) => {
+    const rows = [...snap.rows];
+    const your = rows.find((row) => row.name === highlightName);
+    const leaderPoints = rows.reduce((max, row) => Math.max(max, Number(row.points) || 0), 0);
+    if (your) {
+      rankSeries.push({ gw: snap.gw, value: Number(your.rank), points: Number(your.points) });
+      pointsGap.push({ gw: snap.gw, value: leaderPoints - Number(your.points) });
+    } else {
+      rankSeries.push({ gw: snap.gw, value: null, points: null });
+      pointsGap.push({ gw: snap.gw, value: null });
+    }
+  });
+
+  return { sorted, rankSeries, pointsGap };
+}
+
+function drawLeagueLineChart(canvas, points, labelText, invertY = false) {
+  if (!canvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const cssWidth = Math.max(canvas.clientWidth || 300, 300);
+  const cssHeight = 160;
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+  canvas.style.height = `${cssHeight}px`;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const width = canvas.width / ratio;
+  const height = canvas.height / ratio;
+  const pad = { left: 34, right: 12, top: 16, bottom: 26 };
+  const styles = getComputedStyle(document.documentElement);
+  const grid = styles.getPropertyValue("--chart-grid").trim() || "#d2dde9";
+  const text = styles.getPropertyValue("--muted").trim() || "#6b7280";
+  const line = styles.getPropertyValue("--chart-rank").trim() || "#3b82f6";
+
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.strokeStyle = grid;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(pad.left, pad.top, width - pad.left - pad.right, height - pad.top - pad.bottom);
+
+  const valid = points.filter((p) => Number.isFinite(p.value));
+  if (valid.length < 2) {
+    ctx.strokeStyle = grid;
+    ctx.beginPath();
+    ctx.moveTo(pad.left + 8, height / 2);
+    ctx.lineTo(width - pad.right - 8, height / 2);
+    ctx.stroke();
+  } else {
+    const minX = Math.min(...points.map((p) => p.gw));
+    const maxX = Math.max(...points.map((p) => p.gw));
+    const minY = Math.min(...valid.map((p) => p.value));
+    const maxY = Math.max(...valid.map((p) => p.value));
+    const rangeX = maxX - minX || 1;
+    const rangeY = maxY - minY || 1;
+
+    ctx.strokeStyle = line;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+
+    points.forEach((p) => {
+      if (!Number.isFinite(p.value)) {
+        started = false;
+        return;
+      }
+      const x = pad.left + ((p.gw - minX) / rangeX) * (width - pad.left - pad.right);
+      const normY = (p.value - minY) / rangeY;
+      const y = invertY
+        ? pad.top + normY * (height - pad.top - pad.bottom)
+        : height - pad.bottom - normY * (height - pad.top - pad.bottom);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = text;
+  ctx.font = "12px sans-serif";
+  ctx.fillText("GW", width - 28, height - 8);
+  ctx.fillText(labelText, 8, 12);
+}
+
+function renderLeagueLatestTable(snapshot, highlightName) {
+  if (!snapshot) return `<p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>`;
+  const sortedRows = [...snapshot.rows].sort((a, b) => a.rank - b.rank);
+  const top5 = sortedRows.slice(0, 5);
+  const yourRow = sortedRows.find((row) => row.name === highlightName);
+  const hasYouInTop5 = top5.some((row) => row.name === highlightName);
+  const displayRows = hasYouInTop5 || !yourRow ? top5 : [...top5, yourRow];
+
+  const rows = displayRows
+    .map((row) => `
+      <tr class="${row.name === highlightName ? "pl-you-row" : ""}">
+        <td>${row.rank}</td>
+        <td>${escapeHtml(row.name)} ${row.name === highlightName ? `<span class="badge badge--good">you</span>` : ""}</td>
+        <td>${row.points}</td>
+      </tr>
+    `)
+    .join("");
+  return `
+    <table class="pl-mini-table">
+      <thead><tr><th>Rank</th><th>Name</th><th>Points</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function renderLeagueCard() {
+  if (!leagueContent) return;
+  const snapshots = readLeagueHistory().sort((a, b) => a.gw - b.gw);
+  renderHighlightControls(snapshots);
+  const highlightName = (highlightNameInput?.value || getHighlightName() || "Your Team").trim();
+  const latest = snapshots[snapshots.length - 1];
+
+  if (!snapshots.length) {
+    leagueContent.innerHTML = `<p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>`;
+    return;
+  }
+
+  const series = buildLeagueSeries(snapshots, highlightName);
+  const currentGapPoint = [...series.pointsGap].reverse().find((p) => Number.isFinite(p.value));
+  const currentGap = currentGapPoint ? currentGapPoint.value : "n/a";
+
+  leagueContent.innerHTML = `
+    <div class="pl-summary">
+      <span>Snapshots: <strong>${snapshots.length}</strong></span>
+      <span>Last GW: <strong>${latest.gw}</strong></span>
+    </div>
+    ${renderLeagueLatestTable(latest, highlightName)}
+    <div class="pl-chart-wrap">
+      <p class="pl-chart-label">Rank over time (${escapeHtml(highlightName)})</p>
+      <canvas id="leagueRankChart" class="pl-chart" aria-label="Private league rank history chart"></canvas>
+      <p class="pl-gap">Current gap to leader: ${currentGap}</p>
+    </div>
+    <div class="pl-chart-wrap">
+      <p class="pl-chart-label">Points gap to leader</p>
+      <canvas id="leagueGapChart" class="pl-chart" aria-label="Private league gap history chart"></canvas>
+    </div>
+  `;
+
+  drawLeagueLineChart(
+    document.getElementById("leagueRankChart"),
+    series.rankSeries,
+    "Rank (1 is best)",
+    true,
+  );
+  drawLeagueLineChart(
+    document.getElementById("leagueGapChart"),
+    series.pointsGap,
+    "Gap to leader",
+    false,
+  );
+}
+
+function upsertSnapshot(snapshot) {
+  const snapshots = readLeagueHistory();
+  const idx = snapshots.findIndex((s) => s.gw === snapshot.gw);
+  if (idx >= 0) {
+    const ok = window.confirm(`GW ${snapshot.gw} already exists. Overwrite snapshot?`);
+    if (!ok) return false;
+    snapshots[idx] = snapshot;
+    setLeagueStatus(`Overwrote GW ${snapshot.gw} snapshot.`);
+  } else {
+    snapshots.push(snapshot);
+    setLeagueStatus(`Imported GW ${snapshot.gw} snapshot.`);
+  }
+  snapshots.sort((a, b) => a.gw - b.gw);
+  writeLeagueHistory(snapshots);
+  return true;
+}
+
+function loadDemoLeagueData() {
+  const names = ["Your Team", "North XI", "Pressing Unit", "Expected Goals", "Wildcards FC", "Bench Boosters", "Captain Chaos", "Set Piece Lab"];
+  const snapshots = [24, 25, 26, 27, 28, 29].map((gw, idx) => {
+    const rows = names.map((name, i) => {
+      const points = 1500 + idx * 45 + (names.length - i) * 17 + (i % 3) * 9;
+      return { name, points, rank: 0 };
+    });
+    rows.sort((a, b) => b.points - a.points).forEach((row, i) => {
+      row.rank = i + 1;
+    });
+    const your = rows.find((r) => r.name === "Your Team");
+    if (your) your.points += idx % 2 === 0 ? 10 : -8;
+    rows.sort((a, b) => b.points - a.points).forEach((row, i) => {
+      row.rank = i + 1;
+    });
+    return { gw, rows };
+  });
+  writeLeagueHistory(snapshots);
+  setHighlightName("Your Team");
+  setLeagueStatus("Demo data loaded.");
+  renderLeagueCard();
+}
+
+async function importLeagueCsvFromInput() {
+  if (!leagueCsvInput?.files?.length) {
+    setLeagueStatus("Select a CSV file first.", true);
+    return;
+  }
+  try {
+    const file = leagueCsvInput.files[0];
+    const text = await file.text();
+    const snapshot = parseLeagueCsv(text);
+    const ok = upsertSnapshot(snapshot);
+    if (ok) renderLeagueCard();
+  } catch (error) {
+    setLeagueStatus(error instanceof Error ? error.message : "Failed to import CSV.", true);
+  }
+}
+
+function clearLeagueHistory() {
+  const ok = window.confirm("Clear all private league snapshots?");
+  if (!ok) return;
+  localStorage.removeItem(LEAGUE_HISTORY_KEY);
+  setLeagueStatus("League history cleared.");
+  renderLeagueCard();
+}
+
+function initializePrivateLeague() {
+  renderLeagueCard();
+
+  if (importLeagueBtn) {
+    importLeagueBtn.addEventListener("click", () => {
+      importLeagueCsvFromInput();
+    });
+  }
+
+  if (loadDemoLeagueBtn) {
+    loadDemoLeagueBtn.addEventListener("click", () => {
+      loadDemoLeagueData();
+    });
+  }
+
+  if (clearLeagueBtn) {
+    clearLeagueBtn.addEventListener("click", () => {
+      clearLeagueHistory();
+    });
+  }
+
+  if (highlightSelect) {
+    highlightSelect.addEventListener("change", () => {
+      const value = highlightSelect.value || highlightNameInput?.value || "";
+      if (highlightNameInput) highlightNameInput.value = value;
+      setHighlightName(value);
+      renderLeagueCard();
+    });
+  }
+
+  if (highlightNameInput) {
+    highlightNameInput.addEventListener("change", () => {
+      setHighlightName(highlightNameInput.value);
+      renderLeagueCard();
+    });
+  }
 }
 
 function getPreferredTheme() {
@@ -1081,8 +1497,10 @@ if (retryLoadBtn) {
 
 window.addEventListener("resize", () => {
   renderTrendsCard(lastRenderedHistory);
+  renderLeagueCard();
 });
 
 initializeTheme();
 initializeDataSourceSettings();
+initializePrivateLeague();
 loadAndRender();
