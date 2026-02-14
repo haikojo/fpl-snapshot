@@ -13,21 +13,31 @@
           <div class="header-artwork" aria-hidden="true">
             <svg viewBox="0 0 560 140" preserveAspectRatio="none">
               <defs>
-                <radialGradient id="hdrGlow" cx="88%" cy="18%" r="55%">
-                  <stop offset="0%" stop-color="currentColor" stop-opacity="0.18" />
-                  <stop offset="100%" stop-color="currentColor" stop-opacity="0" />
+                <radialGradient id="hdrGlow" cx="88%" cy="18%" r="58%">
+                  <stop offset="0%" stop-color="var(--accent-info)" stop-opacity="0.2" />
+                  <stop offset="100%" stop-color="var(--accent-info)" stop-opacity="0" />
                 </radialGradient>
+                <linearGradient id="hdrLineA" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="var(--accent-info)" stop-opacity="0.78" />
+                  <stop offset="100%" stop-color="var(--accent-primary)" stop-opacity="0.64" />
+                </linearGradient>
+                <linearGradient id="hdrLineB" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="var(--accent-secondary)" stop-opacity="0.66" />
+                  <stop offset="100%" stop-color="var(--accent-info)" stop-opacity="0.38" />
+                </linearGradient>
               </defs>
               <rect width="560" height="140" fill="url(#hdrGlow)" />
-              <g opacity="0.25" stroke="currentColor" stroke-width="0.7" fill="none">
+              <g opacity="0.24" stroke="currentColor" stroke-width="0.7" fill="none">
                 <path d="M0 18h560M0 46h560M0 74h560M0 102h560M0 130h560" />
                 <path d="M35 0v140M110 0v140M185 0v140M260 0v140M335 0v140M410 0v140M485 0v140" />
               </g>
-              <path d="M18 102 C74 86, 108 38, 156 60 C204 82, 248 94, 300 68 C350 42, 392 50, 444 46 C486 42, 516 30, 546 22" stroke="currentColor" stroke-width="2" fill="none" opacity="0.58" />
-              <g fill="currentColor" opacity="0.6">
+              <path d="M18 102 C74 86, 108 38, 156 60 C204 82, 248 94, 300 68 C350 42, 392 50, 444 46 C486 42, 516 30, 546 22" stroke="url(#hdrLineA)" stroke-width="2.1" fill="none" opacity="0.78" />
+              <path d="M24 112 C70 104, 116 82, 162 92 C214 104, 270 112, 326 88 C368 72, 432 70, 540 60" stroke="url(#hdrLineB)" stroke-width="1.5" fill="none" opacity="0.6" />
+              <g fill="var(--accent-info)" opacity="0.66">
                 <circle cx="156" cy="60" r="3.3" />
                 <circle cx="300" cy="68" r="3.3" />
                 <circle cx="444" cy="46" r="3.3" />
+                <circle cx="326" cy="88" r="2.6" />
               </g>
             </svg>
           </div>
@@ -92,6 +102,42 @@
           <p>Loading...</p>
         </section>
 
+        <section class="section-divider card--full" aria-hidden="true">
+          <svg viewBox="0 0 960 88" preserveAspectRatio="none">
+            <g stroke="var(--border-strong)" stroke-opacity="0.28" stroke-width="0.7" fill="none">
+              <path d="M0 22h960M0 44h960M0 66h960" />
+              <path d="M64 10v68M256 10v68M448 10v68M640 10v68M832 10v68" />
+            </g>
+            <g stroke="var(--accent-info)" stroke-opacity="0.34" stroke-width="2" stroke-linecap="round" fill="none">
+              <path d="M94 27h18M124 27h8M146 27h14" />
+              <path d="M522 59h16M548 59h10M568 59h12" />
+              <path d="M730 31h14M754 31h8M770 31h16" />
+            </g>
+            <g stroke="var(--accent-secondary)" stroke-opacity="0.26" stroke-width="1.8" fill="none">
+              <path d="M214 30a18 18 0 0 1 18 18" />
+              <path d="M396 58a14 14 0 0 0 14 14" />
+              <path d="M846 50a16 16 0 0 1 16-16" />
+            </g>
+            <g stroke="var(--accent-primary)" stroke-opacity="0.34" stroke-width="1.5" fill="none">
+              <path d="M300 24l8 6-8 6" />
+              <path d="M316 24l8 6-8 6" />
+              <path d="M668 54l8 6-8 6" />
+              <path d="M684 54l8 6-8 6" />
+            </g>
+            <g fill="var(--accent-info)" fill-opacity="0.38">
+              <circle cx="120" cy="58" r="2.4" />
+              <circle cx="134" cy="52" r="1.9" />
+              <circle cx="146" cy="60" r="1.8" />
+              <circle cx="560" cy="27" r="2.3" />
+              <circle cx="574" cy="22" r="1.8" />
+              <circle cx="586" cy="29" r="1.7" />
+              <circle cx="812" cy="60" r="2.2" />
+              <circle cx="826" cy="55" r="1.8" />
+              <circle cx="838" cy="63" r="1.7" />
+            </g>
+          </svg>
+        </section>
+
         <section id="trendsCard" class="card">
           <div class="card-head">
             <h2>Trends</h2>
@@ -139,6 +185,42 @@
           <div id="leagueContent" class="pl-content">
             <p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>
           </div>
+        </section>
+
+        <section class="section-divider card--full" aria-hidden="true">
+          <svg viewBox="0 0 960 88" preserveAspectRatio="none">
+            <g stroke="var(--border-strong)" stroke-opacity="0.28" stroke-width="0.7" fill="none">
+              <path d="M0 22h960M0 44h960M0 66h960" />
+              <path d="M64 10v68M256 10v68M448 10v68M640 10v68M832 10v68" />
+            </g>
+            <g stroke="var(--accent-info)" stroke-opacity="0.34" stroke-width="2" stroke-linecap="round" fill="none">
+              <path d="M94 27h18M124 27h8M146 27h14" />
+              <path d="M522 59h16M548 59h10M568 59h12" />
+              <path d="M730 31h14M754 31h8M770 31h16" />
+            </g>
+            <g stroke="var(--accent-secondary)" stroke-opacity="0.26" stroke-width="1.8" fill="none">
+              <path d="M214 30a18 18 0 0 1 18 18" />
+              <path d="M396 58a14 14 0 0 0 14 14" />
+              <path d="M846 50a16 16 0 0 1 16-16" />
+            </g>
+            <g stroke="var(--accent-primary)" stroke-opacity="0.34" stroke-width="1.5" fill="none">
+              <path d="M300 24l8 6-8 6" />
+              <path d="M316 24l8 6-8 6" />
+              <path d="M668 54l8 6-8 6" />
+              <path d="M684 54l8 6-8 6" />
+            </g>
+            <g fill="var(--accent-info)" fill-opacity="0.38">
+              <circle cx="120" cy="58" r="2.4" />
+              <circle cx="134" cy="52" r="1.9" />
+              <circle cx="146" cy="60" r="1.8" />
+              <circle cx="560" cy="27" r="2.3" />
+              <circle cx="574" cy="22" r="1.8" />
+              <circle cx="586" cy="29" r="1.7" />
+              <circle cx="812" cy="60" r="2.2" />
+              <circle cx="826" cy="55" r="1.8" />
+              <circle cx="838" cy="63" r="1.7" />
+            </g>
+          </svg>
         </section>
 
         <section id="leagueOverviewCard" class="card card--full">
