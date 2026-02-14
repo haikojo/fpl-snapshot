@@ -3,7 +3,8 @@ const TTL_MS = 10 * 60 * 1000;
 const FPL_SITE_BASE_URL = "https://fantasy.premierleague.com";
 const SETTINGS_KEY = "fpl_snapshot_settings";
 const ENTRY_ID_STORAGE_KEY = "fpl_selected_entry_id";
-const DEFAULT_PROXY_BASE_URL = "https://fpl-proxy.fpl-snapshot.workers.dev";
+const DEFAULT_PROXY_BASE_URL = "https://fpl-snapshot-proxy.fpl-snapshot.workers.dev";
+
 
 function isGitHubPages() {
   return location.hostname.endsWith("github.io");
