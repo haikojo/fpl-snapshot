@@ -399,6 +399,84 @@ h1 {
   font-weight: 700;
 }
 
+.status-grid {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.38rem 0.52rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.status-row:last-child {
+  border-bottom: 0;
+}
+
+.status-label {
+  color: var(--muted);
+}
+
+.status-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-wrap {
+  margin-top: 0.45rem;
+}
+
+.risk-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.risk-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--badge-neutral-text);
+}
+
+.risk-fill.risk-good {
+  background: #4b9e86;
+}
+
+.risk-fill.risk-warn {
+  background: #b26f2a;
+}
+
+.risk-fill.risk-danger {
+  background: #b84949;
+}
+
+.checklist {
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.25rem 0;
+  font-size: 0.89rem;
+}
+
+.check-indicator {
+  color: var(--muted);
+}
+
 .metric-list {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -531,6 +609,19 @@ h1 {
 
 .links-list {
   margin-top: 0.1rem;
+}
+
+.info-list {
+  margin: 0;
+  padding-left: 1rem;
+  color: var(--muted);
+  opacity: 0.95;
+}
+
+.info-list li {
+  margin: 0.2rem 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
 }
 
 .badge {

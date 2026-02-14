@@ -314,6 +314,20 @@ function getUrgencyInfo(msLeft) {
   return { text: "Imminent", badgeClass: "badge--danger" };
 }
 
+function getRiskFillClass(urgencyBadgeClass) {
+  if (urgencyBadgeClass === "badge--good") return "risk-good";
+  if (urgencyBadgeClass === "badge--warn") return "risk-warn";
+  if (urgencyBadgeClass === "badge--danger") return "risk-danger";
+  return "";
+}
+
+function computeRiskProgress(msLeft) {
+  // Use a fixed 7-day window when precise GW open/start window is unavailable.
+  const windowMs = 7 * 24 * 60 * 60 * 1000;
+  const progress = ((windowMs - msLeft) / windowMs) * 100;
+  return Math.max(0, Math.min(100, progress));
+}
+
 function formatLocalDeadline(iso) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "n/a";
@@ -585,18 +599,32 @@ function renderDeadlineCard(events) {
     const msLeft = getMsLeft(next.deadline_time);
     const urgency = getUrgencyInfo(msLeft);
     const countdownText = formatCountdown(next.deadline_time);
+    const riskProgress = computeRiskProgress(msLeft);
+    const riskFillClass = getRiskFillClass(urgency.badgeClass);
 
     deadlineCard.innerHTML = `
       ${cardHead("Next Deadline", `GW ${next.id}`, "badge--good")}
       <p><strong>Gameweek ${next.id}:</strong> ${formatDate(next.deadline_time)}</p>
       <p class="muted">Countdown: ${countdownText}</p>
-      <h3 class="section-mini-title">DEADLINE CHECK</h3>
-      <div class="metric-list">
-        <div class="metric-row"><span class="metric-label">Time left</span><span class="metric-value">${countdownText}</span></div>
-        <div class="metric-row"><span class="metric-label">Urgency</span><span class="metric-value">${badgePill(urgency.text, urgency.badgeClass)}</span></div>
-        <div class="metric-row"><span class="metric-label">Local time</span><span class="metric-value">${formatLocalDeadline(next.deadline_time)}</span></div>
-        <div class="metric-row"><span class="metric-label">Timezone</span><span class="metric-value">${getLocalTimezone()}</span></div>
+      <h3 class="section-mini-title">DEADLINE STATUS</h3>
+      <div class="status-grid">
+        <div class="status-row"><span class="status-label">Time left</span><span class="status-value">${countdownText}</span></div>
+        <div class="status-row"><span class="status-label">Urgency</span><span class="status-value">${badgePill(urgency.text, urgency.badgeClass)}</span></div>
+        <div class="status-row"><span class="status-label">Deadline (local)</span><span class="status-value">${formatLocalDeadline(next.deadline_time)}</span></div>
+        <div class="status-row"><span class="status-label">Timezone</span><span class="status-value">Local time</span></div>
       </div>
+      <div class="risk-wrap">
+        <div class="risk-track">
+          <div class="risk-fill ${riskFillClass}" style="width:${riskProgress.toFixed(1)}%"></div>
+        </div>
+      </div>
+      <h3 class="section-mini-title">CHECKLIST</h3>
+      <ul class="checklist">
+        <li><span class="check-indicator">☐</span>Transfers checked</li>
+        <li><span class="check-indicator">☐</span>Captain set</li>
+        <li><span class="check-indicator">☐</span>Bench order set</li>
+      </ul>
+      <p class="helper-note">Manual reminders (not auto-detected).</p>
       <p class="helper-note">Tip: Make transfers before the deadline to lock in points.</p>
     `;
   };
