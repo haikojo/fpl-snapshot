@@ -2,6 +2,7 @@ const TEAM_ID = 403618;
 const TTL_MS = 10 * 60 * 1000;
 const BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/";
 const ENTRY_HISTORY_URL = `https://fantasy.premierleague.com/api/entry/${TEAM_ID}/history/`;
+const FIXTURES_URL = "https://fantasy.premierleague.com/api/fixtures/";
 const SETTINGS_KEY = "fpl_snapshot_settings";
 const DEFAULT_PROXY_BASE_URL = "https://fpl-proxy.fpl-snapshot.workers.dev";
 
@@ -892,6 +893,11 @@ function getEntryHistoryApiUrl() {
   return ENTRY_HISTORY_URL;
 }
 
+function getFixturesApiUrl(eventId) {
+  if (settings.useProxy) return `${settings.proxyBaseUrl}/fixtures?event=${eventId}`;
+  return `${FIXTURES_URL}?event=${eventId}`;
+}
+
 function getSourceCacheSuffix() {
   const source = settings.useProxy ? `proxy:${settings.proxyBaseUrl}` : "direct";
   return encodeURIComponent(source);
@@ -956,6 +962,17 @@ function fetchEntryHistory(forceRefresh = false) {
   return fetchWithCache(getEntryHistoryApiUrl(), cacheKey, forceRefresh);
 }
 
+function fetchFixturesByEvent(eventId, forceRefresh = false) {
+  if (!Number.isFinite(Number(eventId))) {
+    throw new Error("Invalid event id for fixtures fetch.");
+  }
+  if (settings.useProxy && !settings.proxyBaseUrl) {
+    throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
+  }
+  const cacheKey = `fpl_fixtures_event_${eventId}_${getSourceCacheSuffix()}`;
+  return fetchWithCache(getFixturesApiUrl(eventId), cacheKey, forceRefresh);
+}
+
 function formatDate(iso) {
   return new Date(iso).toLocaleString();
 }
@@ -1014,6 +1031,95 @@ function getLocalTimezone() {
   } catch {
     return "Local";
   }
+}
+
+function getNextDeadlineEvent(events) {
+  if (!Array.isArray(events) || events.length === 0) return null;
+  const now = Date.now();
+  const upcoming = events
+    .filter((event) => {
+      const deadline = new Date(event.deadline_time).getTime();
+      return Number.isFinite(deadline) && deadline > now;
+    })
+    .sort((a, b) => new Date(a.deadline_time).getTime() - new Date(b.deadline_time).getTime());
+  if (upcoming.length > 0) return upcoming[0];
+  return events.find((event) => event.is_next) || null;
+}
+
+function getGameweekType(fixtures, teams) {
+  const teamIds = Array.isArray(teams) ? teams.map((team) => Number(team.id)).filter((id) => Number.isFinite(id)) : [];
+  if (!Array.isArray(fixtures) || fixtures.length === 0 || teamIds.length === 0) {
+    return { label: "n/a", badgeClass: "badge--neutral", note: "" };
+  }
+
+  const matchCounts = new Map(teamIds.map((id) => [id, 0]));
+  fixtures.forEach((fixture) => {
+    const home = Number(fixture.team_h);
+    const away = Number(fixture.team_a);
+    if (matchCounts.has(home)) matchCounts.set(home, (matchCounts.get(home) || 0) + 1);
+    if (matchCounts.has(away)) matchCounts.set(away, (matchCounts.get(away) || 0) + 1);
+  });
+
+  const counts = Array.from(matchCounts.values());
+  const doubleTeams = counts.filter((count) => count >= 2).length;
+  const blankTeams = counts.filter((count) => count === 0).length;
+
+  if (doubleTeams > 0) {
+    return {
+      label: "Double",
+      badgeClass: "badge--good",
+      note: `Teams with 2 fixtures: ${doubleTeams}`,
+    };
+  }
+  if (blankTeams > 0) {
+    return {
+      label: "Blank",
+      badgeClass: "badge--warn",
+      note: `Teams with 0 fixtures: ${blankTeams}`,
+    };
+  }
+  return {
+    label: "Normal",
+    badgeClass: "badge--neutral",
+    note: "Standard schedule",
+  };
+}
+
+function getLastGwSummary(current) {
+  if (!Array.isArray(current) || current.length === 0) {
+    return {
+      value: "n/a",
+      deltaText: "vs prior GW: n/a",
+      badgeClass: "badge--neutral",
+    };
+  }
+
+  const lastPoints = Number(current[current.length - 1]?.points);
+  if (!Number.isFinite(lastPoints)) {
+    return {
+      value: "n/a",
+      deltaText: "vs prior GW: n/a",
+      badgeClass: "badge--neutral",
+    };
+  }
+
+  if (current.length < 2 || !Number.isFinite(Number(current[current.length - 2]?.points))) {
+    return {
+      value: `${lastPoints} pts •`,
+      deltaText: "vs prior GW: n/a",
+      badgeClass: "badge--neutral",
+    };
+  }
+
+  const prevPoints = Number(current[current.length - 2].points);
+  const delta = lastPoints - prevPoints;
+  const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "•";
+  const signedDelta = delta > 0 ? `+${delta}` : String(delta);
+  return {
+    value: `${lastPoints} pts ${arrow}`,
+    deltaText: `vs prior GW: ${signedDelta}`,
+    badgeClass: delta > 0 ? "badge--good" : delta < 0 ? "badge--warn" : "badge--neutral",
+  };
 }
 
 function computeRankPercentile(latestRank, totalPlayers) {
@@ -1258,8 +1364,8 @@ function ensureChartLegend() {
   return legend;
 }
 
-function renderDeadlineCard(events) {
-  const next = events.find((event) => event.is_next);
+function renderDeadlineCard(events, currentHistory = [], teams = [], fixtures = null) {
+  const next = getNextDeadlineEvent(events);
   if (!next) {
     deadlineCard.innerHTML = `
       ${cardHead("Next Deadline", "Unavailable", "badge--warn")}
@@ -1274,15 +1380,9 @@ function renderDeadlineCard(events) {
     const countdownText = formatCountdown(next.deadline_time);
     const riskProgress = computeRiskProgress(msLeft);
     const riskFillClass = getRiskFillClass(urgency.badgeClass);
-    const nextGw = Number(next.id);
-    const gameweekValue = Number.isFinite(nextGw) ? `GW ${nextGw} / 38` : "n/a";
-    let phaseValue = "n/a";
-    if (Number.isFinite(nextGw)) {
-      if (nextGw >= 1 && nextGw <= 10) phaseValue = "Early season";
-      else if (nextGw >= 11 && nextGw <= 28) phaseValue = "Mid-season";
-      else if (nextGw >= 29 && nextGw <= 38) phaseValue = "Run-in";
-    }
-    const updateStatus = msLeft > 0 ? "Live" : "Closed";
+    const gwType = getGameweekType(fixtures, teams);
+    const lastGw = getLastGwSummary(currentHistory);
+    const gwTypeNote = gwType.note ? `<p class="helper-note">${gwType.note}</p>` : "";
 
     deadlineCard.innerHTML = `
       ${cardHead("Next Deadline", `GW ${next.id}`, "badge--good")}
@@ -1300,13 +1400,16 @@ function renderDeadlineCard(events) {
           <div class="risk-fill ${riskFillClass}" style="width:${riskProgress.toFixed(1)}%"></div>
         </div>
       </div>
-      <h3 class="section-mini-title">DEADLINE CONTEXT</h3>
+      <h3 class="section-mini-title">GAMEWEEK TYPE</h3>
       <div class="status-grid">
-        <div class="status-row"><span class="status-label">Gameweek</span><span class="status-value">${gameweekValue}</span></div>
-        <div class="status-row"><span class="status-label">Phase</span><span class="status-value">${phaseValue}</span></div>
-        <div class="status-row"><span class="status-label">Update status</span><span class="status-value">${updateStatus}</span></div>
-        <div class="status-row"><span class="status-label">Timezone</span><span class="status-value">Local time</span></div>
+        <div class="status-row"><span class="status-label">Type</span><span class="status-value">${badgePill(gwType.label, gwType.badgeClass)}</span></div>
       </div>
+      ${gwTypeNote}
+      <h3 class="section-mini-title">LAST GW</h3>
+      <div class="status-grid">
+        <div class="status-row"><span class="status-label">Points</span><span class="status-value">${badgePill(lastGw.value, lastGw.badgeClass)}</span></div>
+      </div>
+      <p class="helper-note">${lastGw.deltaText}</p>
     `;
   };
 
@@ -1730,8 +1833,18 @@ async function loadAndRender(forceRefresh = false) {
       fetchEntryHistory(forceRefresh),
     ]);
 
-    renderDeadlineCard(bootstrap.events || []);
     const current = history.current || [];
+    let fixtures = null;
+    const nextEvent = getNextDeadlineEvent(bootstrap.events || []);
+    if (nextEvent?.id) {
+      try {
+        fixtures = await fetchFixturesByEvent(nextEvent.id, forceRefresh);
+      } catch {
+        fixtures = null;
+      }
+    }
+
+    renderDeadlineCard(bootstrap.events || [], current, bootstrap.teams || [], fixtures);
     renderSummaryCard(current, bootstrap.total_players);
     renderTrendsCard(current);
     pulseGameweekIconOnce();
