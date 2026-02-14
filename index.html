@@ -18,6 +18,22 @@
           <button id="refreshBtn" type="button" class="btn" aria-label="Refresh data">Refresh</button>
         </div>
       </header>
+      <section class="settings-row" aria-label="Data source settings">
+        <label class="settings-toggle" for="useProxyToggle">
+          <input id="useProxyToggle" type="checkbox" />
+          <span id="modeLabel">Proxy mode</span>
+        </label>
+        <input
+          id="proxyBaseUrlInput"
+          type="url"
+          class="settings-input"
+          placeholder="https://your-worker.workers.dev"
+          aria-label="Proxy base URL"
+        />
+        <button id="saveProxySettingsBtn" type="button" class="btn btn-secondary" aria-label="Save proxy settings">
+          Save
+        </button>
+      </section>
 
       <main class="cards" aria-live="polite">
         <section id="deadlineCard" class="card">

@@ -2,11 +2,16 @@ const TEAM_ID = 403618;
 const TTL_MS = 10 * 60 * 1000;
 const BOOTSTRAP_URL = "https://fantasy.premierleague.com/api/bootstrap-static/";
 const ENTRY_HISTORY_URL = `https://fantasy.premierleague.com/api/entry/${TEAM_ID}/history/`;
+const SETTINGS_KEY = "fpl_snapshot_settings";
 
 const deadlineCard = document.getElementById("deadlineCard");
 const summaryCard = document.getElementById("summaryCard");
 const refreshBtn = document.getElementById("refreshBtn");
 const themeToggleBtn = document.getElementById("themeToggleBtn");
+const useProxyToggle = document.getElementById("useProxyToggle");
+const proxyBaseUrlInput = document.getElementById("proxyBaseUrlInput");
+const saveProxySettingsBtn = document.getElementById("saveProxySettingsBtn");
+const modeLabel = document.getElementById("modeLabel");
 const pointsChart = document.getElementById("pointsChart");
 const rankChart = document.getElementById("rankChart");
 const last6TableContainer = document.getElementById("last6TableContainer");
@@ -15,6 +20,10 @@ const DEFAULT_REFRESH_LABEL = "Refresh";
 let countdownInterval = null;
 let lastRenderedHistory = [];
 let currentTheme = "light";
+let settings = {
+  useProxy: location.hostname.includes("github.io"),
+  proxyBaseUrl: "",
+};
 
 function ensureLastUpdatedLabel() {
   const existing = document.getElementById("lastUpdatedLabel");
@@ -39,7 +48,7 @@ function updateLastUpdated(value) {
   if (!lastUpdatedLabel) return;
   const dateValue = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(dateValue.getTime())) return;
-  lastUpdatedLabel.textContent = `Last updated: ${dateValue.toLocaleString()}`;
+  lastUpdatedLabel.textContent = `Last updated: ${dateValue.toLocaleString()} (${getDataSourceLabel()})`;
 }
 
 function setRefreshButtonState(isLoading) {
@@ -109,6 +118,82 @@ function initializeTheme() {
   });
 }
 
+function normalizeProxyBaseUrl(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function renderSettingsUi() {
+  if (useProxyToggle) useProxyToggle.checked = settings.useProxy;
+  if (proxyBaseUrlInput) {
+    proxyBaseUrlInput.value = settings.proxyBaseUrl;
+    proxyBaseUrlInput.disabled = !settings.useProxy;
+  }
+  if (modeLabel) modeLabel.textContent = settings.useProxy ? "Proxy mode" : "Direct mode";
+}
+
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.useProxy === "boolean") settings.useProxy = parsed.useProxy;
+    if (typeof parsed?.proxyBaseUrl === "string") {
+      settings.proxyBaseUrl = normalizeProxyBaseUrl(parsed.proxyBaseUrl);
+    }
+  } catch {
+    // Ignore malformed settings.
+  }
+}
+
+function saveSettings() {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage access issues.
+  }
+}
+
+function initializeDataSourceSettings() {
+  loadSettings();
+  renderSettingsUi();
+
+  if (useProxyToggle) {
+    useProxyToggle.addEventListener("change", () => {
+      settings.useProxy = useProxyToggle.checked;
+      renderSettingsUi();
+    });
+  }
+
+  if (saveProxySettingsBtn) {
+    saveProxySettingsBtn.addEventListener("click", () => {
+      settings.useProxy = Boolean(useProxyToggle?.checked);
+      settings.proxyBaseUrl = normalizeProxyBaseUrl(proxyBaseUrlInput?.value);
+      saveSettings();
+      renderSettingsUi();
+      loadAndRender(true);
+    });
+  }
+}
+
+function getDataSourceLabel() {
+  return settings.useProxy ? "Proxy" : "Direct";
+}
+
+function getBootstrapApiUrl() {
+  if (settings.useProxy) return `${settings.proxyBaseUrl}/bootstrap-static`;
+  return BOOTSTRAP_URL;
+}
+
+function getEntryHistoryApiUrl() {
+  if (settings.useProxy) return `${settings.proxyBaseUrl}/entry/${TEAM_ID}/history`;
+  return ENTRY_HISTORY_URL;
+}
+
+function getSourceCacheSuffix() {
+  const source = settings.useProxy ? `proxy:${settings.proxyBaseUrl}` : "direct";
+  return encodeURIComponent(source);
+}
+
 function getCache(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -153,11 +238,19 @@ async function fetchWithCache(url, cacheKey, forceRefresh = false) {
 }
 
 function fetchBootstrap(forceRefresh = false) {
-  return fetchWithCache(BOOTSTRAP_URL, "fpl_bootstrap", forceRefresh);
+  if (settings.useProxy && !settings.proxyBaseUrl) {
+    throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
+  }
+  const cacheKey = `fpl_bootstrap_${getSourceCacheSuffix()}`;
+  return fetchWithCache(getBootstrapApiUrl(), cacheKey, forceRefresh);
 }
 
 function fetchEntryHistory(forceRefresh = false) {
-  return fetchWithCache(ENTRY_HISTORY_URL, `fpl_entry_${TEAM_ID}_history`, forceRefresh);
+  if (settings.useProxy && !settings.proxyBaseUrl) {
+    throw new Error("Proxy mode is enabled but proxyBaseUrl is empty. Save a Worker URL or switch to Direct mode.");
+  }
+  const cacheKey = `fpl_entry_${TEAM_ID}_history_${getSourceCacheSuffix()}`;
+  return fetchWithCache(getEntryHistoryApiUrl(), cacheKey, forceRefresh);
 }
 
 function formatDate(iso) {
@@ -628,6 +721,7 @@ function renderLoadingState() {
     ${cardHead("Team Summary", "Syncing", "badge--neutral")}
     <p class="muted">Loading team summary...</p>
     <p class="muted">Calculating form, rank move, and momentum...</p>
+    <p class="muted">Source: ${getDataSourceLabel()}</p>
   `;
 
   if (last6TableContainer) {
@@ -681,4 +775,5 @@ window.addEventListener("resize", () => {
 });
 
 initializeTheme();
+initializeDataSourceSettings();
 loadAndRender();
