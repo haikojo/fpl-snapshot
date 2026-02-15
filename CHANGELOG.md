@@ -15,6 +15,14 @@
 - Proxy configuration inconsistencies that prevented some team IDs from loading
 - Edge cases where data failed to load when switching entry IDs
 
+### Added
+- Demo / placeholder league history for the league standings chart when only 0–1 snapshots are available
+- Clear “Demo history” labeling to distinguish simulated data from uploaded snapshots
+
+### Changed
+- League standings chart now renders meaningful trends even with limited historical data
+- Demo data is generated at render time and never persisted as real snapshot data
+
 ## v1.1.0 — Entry ID selection and sharing
 
 ### Added
