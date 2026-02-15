@@ -493,6 +493,109 @@ function getLeagueOverviewData(snapshots) {
   return { gws, teamSeries };
 }
 
+function seededRandom(seed) {
+  let state = (seed >>> 0) || 1;
+  return () => {
+    state = (state + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function rankRowsByPoints(rows) {
+  const sorted = [...rows].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    return a.name.localeCompare(b.name);
+  });
+  return sorted.map((row, index) => ({
+    name: row.name,
+    points: row.points,
+    rank: index + 1,
+  }));
+}
+
+function generateSyntheticFromSingleSnapshot(snapshot) {
+  const weeks = 8;
+  const endGw = Number(snapshot?.gw);
+  if (!Number.isFinite(endGw)) return [];
+
+  const teamRows = Array.isArray(snapshot?.rows) ? snapshot.rows : [];
+  const pointHistoryByTeam = teamRows.map((row) => {
+    const finalPoints = Math.max(0, Number(row.points) || 0);
+    const rankFactor = Math.max(0, Number(row.rank) || 1);
+    const rng = seededRandom(hashString(`${row.name}:${endGw}:single`));
+    const points = new Array(weeks).fill(0);
+    points[weeks - 1] = finalPoints;
+
+    for (let i = weeks - 2; i >= 0; i -= 1) {
+      const base = 44 + rng() * 32; // ~44..76
+      const variation = (rng() - 0.5) * 10; // +/-5
+      const rankAdjust = Math.max(-6, Math.min(6, (rankFactor - 1) * 0.5));
+      const decrement = Math.max(18, Math.round(base + variation + rankAdjust));
+      points[i] = Math.max(0, points[i + 1] - decrement);
+    }
+
+    return { name: row.name, points };
+  });
+
+  const snapshots = [];
+  for (let i = 0; i < weeks; i += 1) {
+    const gw = endGw - (weeks - 1) + i;
+    const gwRows = pointHistoryByTeam.map((team) => ({
+      name: team.name,
+      points: team.points[i],
+    }));
+    snapshots.push({
+      gw,
+      rows: rankRowsByPoints(gwRows),
+    });
+  }
+  return snapshots;
+}
+
+function generateDemoSnapshots() {
+  const demoNames = [
+    "Your Team",
+    "North XI",
+    "Expected Goals",
+    "Bench Boosters",
+    "Captain Chaos",
+    "Wildcard Union",
+    "Pressing Unit",
+    "Set Piece Lab",
+    "Bonus Magnet",
+    "Clean Sheet Co",
+  ];
+  const endGw = 30;
+  const finalRows = demoNames.map((name, index) => {
+    const rng = seededRandom(hashString(`${name}:demo-final`));
+    const base = 1680 - index * 36;
+    const noise = Math.round((rng() - 0.5) * 18);
+    return {
+      name,
+      points: Math.max(600, base + noise),
+      rank: index + 1,
+    };
+  });
+
+  return generateSyntheticFromSingleSnapshot({
+    gw: endGw,
+    rows: finalRows,
+  });
+}
+
+function buildOverviewSnapshots(realSnapshots) {
+  const snapshots = Array.isArray(realSnapshots) ? [...realSnapshots].sort((a, b) => a.gw - b.gw) : [];
+  if (snapshots.length >= 2) {
+    return { snapshots, isDemoHistory: false };
+  }
+  if (snapshots.length === 1) {
+    return { snapshots: generateSyntheticFromSingleSnapshot(snapshots[0]), isDemoHistory: true };
+  }
+  return { snapshots: generateDemoSnapshots(), isDemoHistory: true };
+}
+
 function getNiceRankStep(maxRank) {
   if (maxRank <= 6) return 1;
   if (maxRank <= 12) return 2;
@@ -610,14 +713,13 @@ function drawLeagueOverviewChart(canvas, gws, teamSeries, highlightName) {
 
 function renderLeagueOverviewCard(snapshots, highlightName) {
   if (!leagueOverviewContent) return;
-  if (!Array.isArray(snapshots) || snapshots.length === 0) {
-    leagueOverviewContent.innerHTML = `
-      <p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>
-    `;
+  const overview = buildOverviewSnapshots(snapshots);
+  const { gws, teamSeries } = getLeagueOverviewData(overview.snapshots);
+  if (!teamSeries.length || !gws.length) {
+    leagueOverviewContent.innerHTML = `<p class="muted">No snapshots yet. Upload a CSV to start tracking your private league.</p>`;
     return;
   }
 
-  const { gws, teamSeries } = getLeagueOverviewData(snapshots);
   hiddenLeagueTeams = new Set(
     Array.from(hiddenLeagueTeams).filter((name) => teamSeries.some((team) => team.name === name)),
   );
@@ -638,17 +740,20 @@ function renderLeagueOverviewCard(snapshots, highlightName) {
       </button>
     `;
   }).join("");
+  const demoBadge = overview.isDemoHistory ? `<span class="badge badge--neutral">Demo history</span>` : "";
+  const demoHint = overview.isDemoHistory ? `<p class="muted pl-overview-note">Upload more snapshots to replace this.</p>` : "";
 
   leagueOverviewContent.innerHTML = `
     <div class="pl-overview-tools">
       <p class="pl-overview-highlight">
-        Highlight: <span class="badge badge--neutral">${escapeHtml(highlightName || "None")}</span>
+        Highlight: <span class="badge badge--neutral">${escapeHtml(highlightName || "None")}</span> ${demoBadge}
       </p>
       <div class="pl-overview-actions">
         <button id="leagueShowAllBtn" type="button" class="btn btn-secondary btn-small">Show all</button>
         <button id="leagueHideAllBtn" type="button" class="btn btn-secondary btn-small">Hide all</button>
       </div>
     </div>
+    ${demoHint}
     <canvas id="leagueAllRankChart" class="pl-overview-canvas" aria-label="Private league all teams rank over time chart"></canvas>
     <p class="pl-overview-note">Rank 1 is best (top).</p>
     <div id="leagueAllLegend" class="pl-overview-legend">${legendItems}</div>
