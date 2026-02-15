@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.1] – 2026-02-15
+
+### Added
+- Support for viewing any public Fantasy Premier League team via Entry ID
+- Stable Cloudflare proxy routing for all entry IDs
+
+### Changed
+- Replaced empty divider cards with subtle glowing section dividers
+- Improved visual rhythm and spacing between dashboard sections
+- Reduced chart-like or misleading decorative elements
+
+### Fixed
+- Proxy configuration inconsistencies that prevented some team IDs from loading
+- Edge cases where data failed to load when switching entry IDs
+
 ## v1.1.0 — Entry ID selection and sharing
 
 ### Added
