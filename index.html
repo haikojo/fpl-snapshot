@@ -113,41 +113,30 @@
           <p>Loading...</p>
         </section>
 
-        <section class="section-divider card--full" aria-hidden="true">
-          <svg viewBox="0 0 960 88" preserveAspectRatio="none">
-            <g stroke="var(--border-strong)" stroke-opacity="0.28" stroke-width="0.7" fill="none">
-              <path d="M0 22h960M0 44h960M0 66h960" />
-              <path d="M64 10v68M256 10v68M448 10v68M640 10v68M832 10v68" />
-            </g>
-            <g stroke="var(--accent-info)" stroke-opacity="0.34" stroke-width="2" stroke-linecap="round" fill="none">
-              <path d="M94 27h18M124 27h8M146 27h14" />
-              <path d="M522 59h16M548 59h10M568 59h12" />
-              <path d="M730 31h14M754 31h8M770 31h16" />
-            </g>
-            <g stroke="var(--accent-secondary)" stroke-opacity="0.26" stroke-width="1.8" fill="none">
-              <path d="M214 30a18 18 0 0 1 18 18" />
-              <path d="M396 58a14 14 0 0 0 14 14" />
-              <path d="M846 50a16 16 0 0 1 16-16" />
-            </g>
-            <g stroke="var(--accent-primary)" stroke-opacity="0.34" stroke-width="1.5" fill="none">
-              <path d="M300 24l8 6-8 6" />
-              <path d="M316 24l8 6-8 6" />
-              <path d="M668 54l8 6-8 6" />
-              <path d="M684 54l8 6-8 6" />
-            </g>
-            <g fill="var(--accent-info)" fill-opacity="0.38">
-              <circle cx="120" cy="58" r="2.4" />
-              <circle cx="134" cy="52" r="1.9" />
-              <circle cx="146" cy="60" r="1.8" />
-              <circle cx="560" cy="27" r="2.3" />
-              <circle cx="574" cy="22" r="1.8" />
-              <circle cx="586" cy="29" r="1.7" />
-              <circle cx="812" cy="60" r="2.2" />
-              <circle cx="826" cy="55" r="1.8" />
-              <circle cx="838" cy="63" r="1.7" />
-            </g>
+        <div class="section-divider" aria-hidden="true">
+          <svg viewBox="0 0 600 40" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="pulseGradientA" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="transparent" />
+                <stop offset="45%" stop-color="var(--accent-primary)" stop-opacity="0.6" />
+                <stop offset="55%" stop-color="var(--accent-secondary)" stop-opacity="0.6" />
+                <stop offset="100%" stop-color="transparent" />
+              </linearGradient>
+              <filter id="blurA">
+                <feGaussianBlur stdDeviation="4" />
+              </filter>
+            </defs>
+            <rect
+              x="120"
+              y="18"
+              width="360"
+              height="4"
+              rx="2"
+              fill="url(#pulseGradientA)"
+              filter="url(#blurA)"
+            />
           </svg>
-        </section>
+        </div>
 
         <section id="trendsCard" class="card">
           <div class="card-head">
@@ -198,41 +187,30 @@
           </div>
         </section>
 
-        <section class="section-divider card--full" aria-hidden="true">
-          <svg viewBox="0 0 960 88" preserveAspectRatio="none">
-            <g stroke="var(--border-strong)" stroke-opacity="0.28" stroke-width="0.7" fill="none">
-              <path d="M0 22h960M0 44h960M0 66h960" />
-              <path d="M64 10v68M256 10v68M448 10v68M640 10v68M832 10v68" />
-            </g>
-            <g stroke="var(--accent-info)" stroke-opacity="0.34" stroke-width="2" stroke-linecap="round" fill="none">
-              <path d="M94 27h18M124 27h8M146 27h14" />
-              <path d="M522 59h16M548 59h10M568 59h12" />
-              <path d="M730 31h14M754 31h8M770 31h16" />
-            </g>
-            <g stroke="var(--accent-secondary)" stroke-opacity="0.26" stroke-width="1.8" fill="none">
-              <path d="M214 30a18 18 0 0 1 18 18" />
-              <path d="M396 58a14 14 0 0 0 14 14" />
-              <path d="M846 50a16 16 0 0 1 16-16" />
-            </g>
-            <g stroke="var(--accent-primary)" stroke-opacity="0.34" stroke-width="1.5" fill="none">
-              <path d="M300 24l8 6-8 6" />
-              <path d="M316 24l8 6-8 6" />
-              <path d="M668 54l8 6-8 6" />
-              <path d="M684 54l8 6-8 6" />
-            </g>
-            <g fill="var(--accent-info)" fill-opacity="0.38">
-              <circle cx="120" cy="58" r="2.4" />
-              <circle cx="134" cy="52" r="1.9" />
-              <circle cx="146" cy="60" r="1.8" />
-              <circle cx="560" cy="27" r="2.3" />
-              <circle cx="574" cy="22" r="1.8" />
-              <circle cx="586" cy="29" r="1.7" />
-              <circle cx="812" cy="60" r="2.2" />
-              <circle cx="826" cy="55" r="1.8" />
-              <circle cx="838" cy="63" r="1.7" />
-            </g>
+        <div class="section-divider" aria-hidden="true">
+          <svg viewBox="0 0 600 40" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="pulseGradientB" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="transparent" />
+                <stop offset="45%" stop-color="var(--accent-primary)" stop-opacity="0.6" />
+                <stop offset="55%" stop-color="var(--accent-secondary)" stop-opacity="0.6" />
+                <stop offset="100%" stop-color="transparent" />
+              </linearGradient>
+              <filter id="blurB">
+                <feGaussianBlur stdDeviation="4" />
+              </filter>
+            </defs>
+            <rect
+              x="120"
+              y="18"
+              width="360"
+              height="4"
+              rx="2"
+              fill="url(#pulseGradientB)"
+              filter="url(#blurB)"
+            />
           </svg>
-        </section>
+        </div>
 
         <section id="leagueOverviewCard" class="card card--full">
           <div class="card-head">
